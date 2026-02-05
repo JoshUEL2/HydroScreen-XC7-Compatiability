@@ -21,6 +21,14 @@ impl CorsairH150i {
     }
 
     pub fn send_image(&self, jpeg_data: &[u8]) -> Result<()> {
+        // ACQUIRE GLOBAL MUTEX
+        // Using our custom windows-sys helper to support "Global\" namespace
+        let lock = super::global_mutex::GlobalMutex::new("Global\\CorsairLinkReadWriteGuardMutex")?;
+        
+        // We attempt to lock. If it fails (timeout), we skip this frame to prevent UI freeze
+        // or we can propagate the error. For now, let's propagate.
+        let _guard = lock.lock().map_err(|e| anyhow!("Mutex error: {}", e))?;
+
         let mut part_num: u16 = 0;
         let max_len = 1024;
         let header_size = 8;

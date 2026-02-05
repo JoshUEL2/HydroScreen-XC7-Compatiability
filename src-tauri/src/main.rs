@@ -11,6 +11,7 @@ use tauri::{Manager, State};
 use tauri_plugin_autostart::MacosLauncher;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{TrayIconBuilder, MouseButton, TrayIconEvent};
+use tauri_plugin_log::{Target, TargetKind, RotationStrategy};
 
 pub struct ImageChannel {
     pub tx: Mutex<Sender<Vec<u8>>>,
@@ -33,8 +34,30 @@ fn get_system_fonts() -> Vec<String> {
 
 fn main() {
     let (tx, rx) = bounded::<Vec<u8>>(2);
+    
+    let args: Vec<String> = std::env::args().collect();
+    let debug_mode = args.contains(&"--debug".to_string()) || cfg!(debug_assertions);
+
+    let app_data = std::env::var("APPDATA").unwrap_or_else(|_| ".".to_string());
+    let log_dir = std::path::Path::new(&app_data).join("com.hydroscreen.app").join("logs");
+
+    if !log_dir.exists() {
+        let _ = std::fs::create_dir_all(&log_dir);
+    }
+
+    println!("[RUST] Starting HydroScreen (Debug: {})", debug_mode);
+    println!("[RUST] Log Dir: {:?}", log_dir);
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_log::Builder::new()
+            .targets([
+                Target::new(TargetKind::Stdout),
+                Target::new(TargetKind::Folder { path: log_dir, file_name: Some("app".to_string()) }),
+            ])
+            .level(if debug_mode { log::LevelFilter::Debug } else { log::LevelFilter::Info })
+            .max_file_size(10 * 1024 * 1024)
+            .rotation_strategy(RotationStrategy::KeepOne)
+            .build())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
@@ -76,7 +99,7 @@ fn main() {
                 })
                 .build(app)?;
 
-            sidecar_handler::spawn_sensor_bridge(app.handle().clone());
+            sidecar_handler::spawn_sensor_bridge(app.handle().clone(), debug_mode);
             
             thread::spawn(move || {
                 aio_communicator::run_aio_loop(rx);

@@ -1,4 +1,5 @@
 import type { ThemeDefinition } from '../types';
+import { fitText } from '../../utils';
 
 let currentVal = 0;
 
@@ -8,7 +9,7 @@ export const theme: ThemeDefinition = {
     author: 'HydroScreen',
     description: 'Automotive-style gauge with smooth animated gradient ring.',
     slots: [
-        { id: 'main', label: 'Primary Value', type: 'number', allowedTypes: ['Temperature', 'Load', 'Level', 'Power', 'Control'] },
+        { id: 'main', label: 'Primary Value', type: 'number', allowedTypes: ['Temperature', 'Load', 'Level', 'Power', 'Fan', 'Flow'] },
         { id: 'sub', label: 'Secondary Data', type: 'number' }
     ],
     options: [
@@ -25,17 +26,18 @@ export const theme: ThemeDefinition = {
         const mainStr = formatted['main'] || '--';
         const subStr = formatted['sub'] || '';
         const font = config.fontFamily || 'Arial';
-        
+        const scale = (config.globalFontScale ?? 100) / 100;
+
         const diff = targetVal - currentVal;
         if (Math.abs(diff) > 0.1) {
             currentVal += diff * 0.15;
         } else {
             currentVal = targetVal;
         }
-        
+
         ctx.fillStyle = config.bgColor;
         ctx.fillRect(0, 0, w, h);
-        
+
         const cx = w / 2;
         const cy = h / 2;
         const radius = (w / 2) - 40;
@@ -49,7 +51,12 @@ export const theme: ThemeDefinition = {
 
         const startAngle = Math.PI * 0.75;
         const maxAngle = Math.PI * 2.25;
-        const progress = Math.min(Math.max(currentVal, 0), 100) / 100;
+
+        const min = config['mainMin'] ?? 0;
+        const max = config['mainMax'] ?? 100;
+        const normalized = (currentVal - min) / (max - min);
+
+        const progress = Math.min(Math.max(normalized, 0), 1);
         const endAngle = startAngle + (progress * (maxAngle - startAngle));
 
         const grad = ctx.createLinearGradient(0, h, w, 0);
@@ -61,7 +68,7 @@ export const theme: ThemeDefinition = {
         ctx.strokeStyle = grad;
         ctx.lineWidth = width;
         ctx.lineCap = 'round';
-        
+
         ctx.shadowColor = config.endColor;
         ctx.shadowBlur = 20;
         ctx.stroke();
@@ -69,9 +76,9 @@ export const theme: ThemeDefinition = {
 
         const nubX = cx + Math.cos(endAngle) * radius;
         const nubY = cy + Math.sin(endAngle) * radius;
-        
+
         ctx.beginPath();
-        ctx.arc(nubX, nubY, width/2 - 4, 0, Math.PI*2);
+        ctx.arc(nubX, nubY, width / 2 - 4, 0, Math.PI * 2);
         ctx.fillStyle = '#fff';
         ctx.fill();
 
@@ -79,18 +86,18 @@ export const theme: ThemeDefinition = {
         ctx.textBaseline = 'middle';
 
         ctx.fillStyle = '#fff';
-        ctx.font = `bold 120px "${font}"`;
+        fitText(ctx, mainStr, w - 100, 120 * scale, font);
         ctx.shadowColor = 'rgba(0,0,0,0.8)';
         ctx.shadowBlur = 10;
         ctx.fillText(mainStr, cx, cy + 20);
         ctx.shadowBlur = 0;
 
-        ctx.font = `bold 24px "${font}"`;
-        ctx.fillStyle = config.endColor; 
+        ctx.font = `bold ${24 * scale}px "${font}"`;
+        ctx.fillStyle = config.endColor;
         ctx.fillText(config.mainLabel.toUpperCase(), cx, cy - 80);
 
         ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.font = `500 24px "${font}"`;
+        ctx.font = `500 ${24 * scale}px "${font}"`;
         ctx.fillText(subStr, cx, cy + 90);
 
         ctx.font = `bold 14px "${font}"`;

@@ -99,6 +99,17 @@
         settings.updateThemeConfig(activeTheme.id, 'panY', (config['panY'] ?? 0) + e.movementY);
     }
 
+    function getDefaultRange(type: string) {
+        let max = 100;
+        switch(type) {
+            case 'Fan': max = 2500; break;
+            case 'Flow': max = 200; break;
+            case 'Clock': max = 6000; break;
+            default: max = 100; break;
+        }
+        return { min: 0, max };
+    }
+
     function mapSensor(hwId: string, sensor: Sensor) {
         if (!selectedSlotId || !activeTheme) return;
         
@@ -113,6 +124,14 @@
             const cleanName = sensor.Name.toUpperCase();
             settings.updateThemeConfig(activeTheme.id, labelOptionId, cleanName);
         }
+
+        // AUTO-CONFIGURE DEFAULTS
+        const { min, max } = getDefaultRange(sensor.Type);
+        
+        // Only set if not already set or if it looks 'default'
+        if (config[`${selectedSlotId}Min`] === undefined) settings.updateThemeConfig(activeTheme.id, `${selectedSlotId}Min`, min);
+        // Reset max if it seems stale (simple logic: just set it)
+        settings.updateThemeConfig(activeTheme.id, `${selectedSlotId}Max`, max);
     }
 
     function clearSlot(slotId: string) {
@@ -129,6 +148,17 @@
         return config[opt.id] !== undefined && config[opt.id] !== opt.default;
     }
 
+    $: isFontScaleModified = config['globalFontScale'] !== undefined && config['globalFontScale'] !== 100;
+
+    function isSlotRangeModified(slotId: string) {
+        const mapped = mapping[slotId];
+        if (!mapped) return false;
+        
+        const defaults = getDefaultRange(mapped.sensorType);
+        return (config[`${slotId}Min`] !== undefined && config[`${slotId}Min`] !== defaults.min) ||
+               (config[`${slotId}Max`] !== undefined && config[`${slotId}Max`] !== defaults.max);
+    }
+
     async function resetOption(opt: ThemeOption) {
         if (!activeTheme) return;
 
@@ -142,6 +172,20 @@
         }
 
         settings.updateThemeConfig(activeTheme.id, opt.id, opt.default);
+    }
+
+    function resetFontScale() {
+        if (!activeTheme) return;
+        settings.updateThemeConfig(activeTheme.id, 'globalFontScale', 100);
+    }
+
+    function resetSlotRange(slotId: string) {
+        if (!activeTheme) return;
+        const mapped = mapping[slotId];
+        if (!mapped) return;
+        const defaults = getDefaultRange(mapped.sensorType);
+        settings.updateThemeConfig(activeTheme.id, `${slotId}Min`, defaults.min);
+        settings.updateThemeConfig(activeTheme.id, `${slotId}Max`, defaults.max);
     }
 
     async function confirmResetAll() {
@@ -371,6 +415,89 @@
 
                 <div class="space-y-6 flex-1">
                     {#if activeTheme?.options}
+                        <!-- Global Style Options -->
+                        <div class="space-y-2 pb-4 border-b border-white/5">
+                            <div class="flex justify-between items-center h-5">
+                                <div class="flex items-center gap-2">
+                                    <label for="globalFontScale" class="text-sm font-medium text-zinc-300">Global Font Scale</label>
+                                    {#if isFontScaleModified}
+                                        <button 
+                                            on:click={resetFontScale} 
+                                            class="text-zinc-500 hover:text-indigo-400 transition-colors animate-in fade-in zoom-in duration-200" 
+                                            title="Reset to 100%"
+                                        >
+                                            <RotateCcw size={12} />
+                                        </button>
+                                    {/if}
+                                </div>
+                                <span class="text-xs font-mono text-indigo-400">{config['globalFontScale'] ?? 100}%</span>
+                            </div>
+                            <input 
+                                id="globalFontScale"
+                                type="range" 
+                                min="50" 
+                                max="200" 
+                                value={config['globalFontScale'] ?? 100} 
+                                on:input={(e) => updateConfig('globalFontScale', parseInt(e.currentTarget.value))} 
+                                class="w-full accent-indigo-500 h-1 bg-white/10 rounded-lg appearance-none cursor-pointer"
+                            />
+                        </div>
+
+                        <!-- Range Configuration (Moved from Data Tab) -->
+                         <!-- Show range config for ALL slots that have data mapped or just generic list? 
+                              Let's show a section for "Data Ranges" regarding mapped slots -->
+                        {#if activeTheme.slots.some(s => mapping[s.id])}
+                            <div class="space-y-4 pb-4 border-b border-white/5">
+                                <h4 class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Data Ranges</h4>
+                                {#each activeTheme.slots as slot}
+                                    {#if mapping[slot.id]}
+                                        <div class="space-y-2">
+                                            <div class="flex justify-between items-center h-5">
+                                                <div class="flex items-center gap-2">
+                                                    <label for="{slot.id}Min" class="text-sm font-medium text-zinc-300">{slot.label}</label>
+                                                    {#if isSlotRangeModified(slot.id)}
+                                                        <button 
+                                                            on:click={() => resetSlotRange(slot.id)} 
+                                                            class="text-zinc-500 hover:text-indigo-400 transition-colors animate-in fade-in zoom-in duration-200" 
+                                                            title="Reset range"
+                                                        >
+                                                            <RotateCcw size={12} />
+                                                        </button>
+                                                    {/if}
+                                                </div>
+                                                <span class="text-[10px] text-zinc-500 italic truncate max-w-[150px]">
+                                                    { $rawHardware.find(h => h.Id === mapping[slot.id]?.hwId)?.Sensors.find(s => s.Id === mapping[slot.id]?.sensorId)?.Name }
+                                                </span>
+                                            </div>
+                                            <div class="flex gap-2">
+                                                <div class="relative flex-1">
+                                                    <span class="absolute left-2 top-1.5 text-[10px] text-zinc-600">MIN</span>
+                                                    <input 
+                                                        id="{slot.id}Min"
+                                                        type="number" 
+                                                        value={config[`${slot.id}Min`] ?? 0}
+                                                        on:input={(e) => updateConfig(`${slot.id}Min`, parseFloat(e.currentTarget.value))}
+                                                        class="w-full bg-black/20 border border-white/10 rounded px-2 pt-4 pb-1 text-xs text-white focus:outline-none focus:border-indigo-500/50"
+                                                    />
+                                                </div>
+                                                <div class="relative flex-1">
+                                                    <span class="absolute left-2 top-1.5 text-[10px] text-zinc-600">MAX</span>
+                                                    <input 
+                                                        id="{slot.id}Max"
+                                                        type="number" 
+                                                        value={config[`${slot.id}Max`] ?? 100}
+                                                        on:input={(e) => updateConfig(`${slot.id}Max`, parseFloat(e.currentTarget.value))}
+                                                        class="w-full bg-black/20 border border-white/10 rounded px-2 pt-4 pb-1 text-xs text-white focus:outline-none focus:border-indigo-500/50"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    {/if}
+                                {/each}
+                            </div>
+                        {/if}
+
+                        <!-- Theme Specific Options -->
                         {#each activeTheme.options as opt}
                             <div class="space-y-2">
                                 <div class="flex justify-between items-center h-5">

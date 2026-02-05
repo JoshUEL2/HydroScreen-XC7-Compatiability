@@ -1,5 +1,6 @@
 import type { ThemeDefinition } from '../types';
 import type { GifData } from '$lib/gif_utils';
+import { fitText } from '../../utils';
 
 export const theme: ThemeDefinition = {
     id: 'custom-media',
@@ -26,8 +27,9 @@ export const theme: ThemeDefinition = {
         const panX = config.panX ?? 0;
         const panY = config.panY ?? 0;
         const font = config.textFont || 'Arial';
-        const size = config.fontSize || 80;
-        
+        const globalScale = (config.globalFontScale ?? 100) / 100;
+        const size = (config.fontSize || 80) * globalScale;
+
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, w, h);
 
@@ -36,7 +38,7 @@ export const theme: ThemeDefinition = {
         if (asset) {
             if (asset instanceof HTMLImageElement) {
                 imgToDraw = asset;
-            } 
+            }
             else if ((asset as any).frames) {
                 const gif = asset as GifData;
 
@@ -84,7 +86,7 @@ export const theme: ThemeDefinition = {
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.font = 'bold 30px Arial';
-            ctx.fillText("SELECT FILE IN SETTINGS", w/2, h/2);
+            ctx.fillText("SELECT FILE IN SETTINGS", w / 2, h / 2);
         }
 
         if (config.showText) {
@@ -99,13 +101,14 @@ export const theme: ThemeDefinition = {
                 ctx.shadowOffsetY = 2;
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                
-                ctx.font = `bold ${size}px "${font}"`;
-                ctx.fillText(str, w/2, h - size);
-                
-                ctx.font = `bold ${Math.max(12, size/4)}px "${font}"`;
-                ctx.fillText(label.toUpperCase(), w/2, h - (size/2));
-                
+
+                fitText(ctx, str, w - 40, size, font);
+                ctx.fillText(str, w / 2, h - size);
+
+                const labelSize = Math.max(12, size / 4);
+                ctx.font = `bold ${labelSize}px "${font}"`;
+                ctx.fillText(label.toUpperCase(), w / 2, h - (size / 2));
+
                 ctx.shadowBlur = 0;
                 ctx.shadowOffsetX = 0;
                 ctx.shadowOffsetY = 0;

@@ -95,6 +95,7 @@ return {
 *   **[LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor):** The backbone of the sensor reading logic.
 *   **[namazso](https://github.com/namazso/LibreHardwareMonitor/):** For the custom fork of LHM that adds PawnIO support.
 *   **[PawnIO](https://pawnio.eu/):** For the signed kernel driver that makes hardware access safe.
+*   **[EvanMulawski](https://github.com/EvanMulawski/FanControl.CorsairLink):** For the FanControl.CorsairLink plugin that's used for Corsair Commander Core/Pro/XT sensor reading.
 
 ## License & Liability
 

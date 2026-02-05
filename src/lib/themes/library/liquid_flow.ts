@@ -1,4 +1,5 @@
 import type { ThemeDefinition } from '../types';
+import { fitText } from '../../utils';
 
 let currentFill = 0;
 
@@ -8,7 +9,7 @@ export const theme: ThemeDefinition = {
     author: 'HydroScreen',
     description: 'Realistic dual-layer liquid simulation with physics and smooth tides.',
     slots: [
-        { id: 'level', label: 'Fluid Level', type: 'number', allowedTypes: ['Load', 'Level', 'Temperature'] }
+        { id: 'level', label: 'Fluid Level', type: 'number', allowedTypes: ['Load', 'Level', 'Temperature', 'Fan', 'Flow'] }
     ],
     options: [
         { id: 'waterColor', label: 'Liquid Color', type: 'color', default: '#4f46e5' },
@@ -21,24 +22,29 @@ export const theme: ThemeDefinition = {
         const val = values['level'] || 0;
         const str = formatted['level'] || `${Math.round(val)}%`;
         const font = config.fontFamily || 'Arial';
-        
-        const targetFill = Math.min(Math.max(val, 0), 100) / 100;
-        
+        const scale = (config.globalFontScale ?? 100) / 100;
+
+        const min = config['levelMin'] ?? 0;
+        const max = config['levelMax'] ?? 100;
+        const normalized = (val - min) / (max - min);
+
+        const targetFill = Math.min(Math.max(normalized, 0), 1);
+
         const diff = targetFill - currentFill;
         if (Math.abs(diff) > 0.001) {
-            currentFill += diff * 0.05; 
+            currentFill += diff * 0.05;
         } else {
             currentFill = targetFill;
         }
 
         const waterLevel = h - (h * currentFill);
-        const speedMultiplier = (config.waveSpeed / 100) * 0.05; 
+        const speedMultiplier = (config.waveSpeed / 100) * 0.05;
 
         ctx.fillStyle = config.bgColor;
         ctx.fillRect(0, 0, w, h);
 
         const primaryColor = config.waterColor;
-        
+
         ctx.fillStyle = adjustOpacity(primaryColor, 0.4);
         ctx.beginPath();
         ctx.moveTo(0, h);
@@ -54,7 +60,7 @@ export const theme: ThemeDefinition = {
         ctx.beginPath();
         ctx.moveTo(0, h);
         for (let x = 0; x <= w; x += 5) {
-            const bob = Math.sin(tick * 0.05) * 5; 
+            const bob = Math.sin(tick * 0.05) * 5;
             const y = (waterLevel + bob) + Math.sin((x * 0.02) + (tick * speedMultiplier) + 2) * 20;
             ctx.lineTo(x, y);
         }
@@ -63,30 +69,30 @@ export const theme: ThemeDefinition = {
         ctx.fill();
 
         ctx.fillStyle = 'rgba(255,255,255,0.15)';
-        for(let i=0; i<6; i++) {
+        for (let i = 0; i < 6; i++) {
             const speed = (i + 1) * 0.5;
-            const bx = (w/6 * i + tick * speedMultiplier * 20) % w;
-            const by = (h - ((tick * speed + i*50) % h));
-            
+            const bx = (w / 6 * i + tick * speedMultiplier * 20) % w;
+            const by = (h - ((tick * speed + i * 50) % h));
+
             if (by > waterLevel + 20) {
-                 ctx.beginPath();
-                 ctx.arc(bx, by, 4 + i, 0, Math.PI*2);
-                 ctx.fill();
+                ctx.beginPath();
+                ctx.arc(bx, by, 4 + i, 0, Math.PI * 2);
+                ctx.fill();
             }
         }
 
         ctx.fillStyle = '#fff';
-        ctx.font = `bold 120px "${font}"`;
+        fitText(ctx, str, w - 80, 120 * scale, font);
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        
+
         ctx.shadowColor = 'rgba(0,0,0,0.5)';
         ctx.shadowBlur = 20;
-        ctx.fillText(str, w/2, h/2 - 20);
+        ctx.fillText(str, w / 2, h / 2 - 20);
 
-        ctx.font = `bold 24px "${font}"`;
-        ctx.fillText(config.levelLabel.toUpperCase(), w/2, h/2 + 60);
-        
+        ctx.font = `bold ${24 * scale}px "${font}"`;
+        ctx.fillText(config.levelLabel.toUpperCase(), w / 2, h / 2 + 60);
+
         ctx.shadowBlur = 0;
     }
 };

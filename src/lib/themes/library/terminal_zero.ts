@@ -1,4 +1,5 @@
 import type { ThemeDefinition } from '../types';
+import { fitText } from '../../utils';
 
 export const theme: ThemeDefinition = {
     id: 'terminal-zero',
@@ -6,8 +7,8 @@ export const theme: ThemeDefinition = {
     author: 'HydroScreen',
     description: 'Authentic 1980s CRT monitor simulation.',
     slots: [
-        { id: 'top', label: 'System Metric A', type: 'number' },
-        { id: 'bot', label: 'System Metric B', type: 'number' }
+        { id: 'top', label: 'System Metric A', type: 'number', allowedTypes: ['Temperature', 'Load', 'Level', 'Power', 'Fan', 'Flow'] },
+        { id: 'bot', label: 'System Metric B', type: 'number', allowedTypes: ['Temperature', 'Load', 'Level', 'Power', 'Fan', 'Flow'] }
     ],
     options: [
         { id: 'phosphor', label: 'Phosphor Color', type: 'color', default: '#33ff33' },
@@ -22,29 +23,32 @@ export const theme: ThemeDefinition = {
         const color = config.phosphor;
         const blurAmount = (config.bloom / 100) * 15;
         const font = config.fontFamily || 'Consolas';
+        const scale = (config.globalFontScale ?? 100) / 100;
 
         ctx.fillStyle = '#020202';
         ctx.fillRect(0, 0, w, h);
 
-        ctx.font = `bold 36px "${font}"`;
+        ctx.font = `bold ${36 * scale}px "${font}"`;
         ctx.fillStyle = color;
         ctx.strokeStyle = color;
         ctx.textAlign = 'left';
-        
+
         ctx.shadowColor = color;
         ctx.shadowBlur = blurAmount;
 
         ctx.fillText('// HYDRO_BIOS v1.0', 40, 60);
         ctx.fillRect(40, 80, w - 80, 2);
 
-        ctx.font = `20px "${font}"`;
+        ctx.font = `${20 * scale}px "${font}"`;
         ctx.fillText(config.topLabel.toUpperCase(), 40, 140);
-        ctx.font = `bold 110px "${font}"`;
+
+        fitText(ctx, topVal, w - 80, 110 * scale, font);
         ctx.fillText(topVal, 35, 240);
 
-        ctx.font = `20px "${font}"`;
+        ctx.font = `${20 * scale}px "${font}"`;
         ctx.fillText(config.botLabel.toUpperCase(), 40, 320);
-        ctx.font = `bold 80px "${font}"`;
+
+        fitText(ctx, botVal, w - 120, 80 * scale, font);
         ctx.fillText(botVal, 35, 400);
 
         if (Math.floor(tick / 20) % 2 === 0) {
@@ -64,11 +68,11 @@ export const theme: ThemeDefinition = {
         grad.addColorStop(0, 'rgba(0,0,0,0)');
         grad.addColorStop(0.5, 'rgba(255,255,255,0.05)');
         grad.addColorStop(1, 'rgba(0,0,0,0)');
-        
+
         ctx.fillStyle = grad;
         ctx.fillRect(0, barY, w, 50);
-        
-        const vig = ctx.createRadialGradient(w/2, h/2, w/2.5, w/2, h/2, w*0.8);
+
+        const vig = ctx.createRadialGradient(w / 2, h / 2, w / 2.5, w / 2, h / 2, w * 0.8);
         vig.addColorStop(0, 'rgba(0,0,0,0)');
         vig.addColorStop(1, 'rgba(0,0,0,0.8)');
         ctx.fillStyle = vig;

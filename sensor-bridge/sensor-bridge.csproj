@@ -11,10 +11,30 @@
 
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+    <PackageReference Include="HidSharp" Version="2.1.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\lhm-pawnio\LibreHardwareMonitorLib\LibreHardwareMonitorLib.csproj" />
+    <ProjectReference Include="..\FanControl.CorsairLink\src\CorsairLink.Abstractions\CorsairLink.Abstractions.csproj" />
+    <ProjectReference Include="..\FanControl.CorsairLink\src\CorsairLink.Hid\CorsairLink.Hid.csproj" />
+    <ProjectReference Include="..\FanControl.CorsairLink\src\CorsairLink.Synchronization\CorsairLink.Synchronization.csproj" />
+    <ProjectReference Include="..\FanControl.CorsairLink\src\devices\commander_core\CorsairLink.Devices.CommanderCore.csproj" />
+    <ProjectReference Include="..\FanControl.CorsairLink\src\devices\hydro_platinum\CorsairLink.Devices.HydroPlatinum.csproj" />
+    <ProjectReference Include="..\FanControl.CorsairLink\src\devices\commander_pro\CorsairLink.Devices.CommanderPro.csproj" />
+    <ProjectReference Include="..\FanControl.CorsairLink\src\devices\icue_link\CorsairLink.Devices.ICueLink.csproj" />
+    <ProjectReference Include="..\FanControl.CorsairLink\src\devices\coolit\CorsairLink.Devices.Coolit.csproj" />
+    <ProjectReference Include="..\FanControl.CorsairLink\src\devices\hid_psu\CorsairLink.Devices.HidPsu.csproj" />
+    <ProjectReference Include="..\FanControl.CorsairLink\src\devices\flex_usb_psu\CorsairLink.Devices.FlexUsbPsu.csproj" />
+    <ProjectReference Include="..\FanControl.CorsairLink\src\devices\hydro_asetek\CorsairLink.Devices.HydroAsetek.csproj" />
+    <ProjectReference Include="..\FanControl.CorsairLink\src\devices\hid_cooling\CorsairLink.Devices.HidCooling.csproj" />
+    <ProjectReference Include="..\FanControl.CorsairLink\src\CorsairLink.SiUsbXpress\CorsairLink.SiUsbXpress.csproj" />
+    <ProjectReference Include="..\FanControl.CorsairLink\src\CorsairLink.SiUsbXpress.Driver\CorsairLink.SiUsbXpress.Driver.csproj" />
+    <ProjectReference Include="..\FanControl.CorsairLink\src\CorsairLink.FlexUsb\CorsairLink.FlexUsb.csproj" />
+    <ProjectReference Include="..\FanControl.CorsairLink\src\CorsairLink.Asetek\CorsairLink.Asetek.csproj" />
+    <Compile Include="..\FanControl.CorsairLink\src\FanControl.CorsairLink\HardwareIds.cs" Link="DeviceManagers\HardwareIds.cs" />
+    <Compile Include="..\FanControl.CorsairLink\src\FanControl.CorsairLink\HidDeviceManager.cs" Link="DeviceManagers\HidDeviceManager.cs" />
+    <Compile Include="..\FanControl.CorsairLink\src\FanControl.CorsairLink\SiUsbXpressDeviceManager.cs" Link="DeviceManagers\SiUsbXpressDeviceManager.cs" />
   </ItemGroup>
 
 </Project>

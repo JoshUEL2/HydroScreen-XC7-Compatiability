@@ -1,0 +1,10 @@
+<Project>
+  <PropertyGroup Condition=" '$(FANCONTROL_CORSAIRLINK_VERSION)' == '' ">
+    <FANCONTROL_CORSAIRLINK_VERSION>LOCAL</FANCONTROL_CORSAIRLINK_VERSION>
+  </PropertyGroup>
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>CorsairLink.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+</Project>

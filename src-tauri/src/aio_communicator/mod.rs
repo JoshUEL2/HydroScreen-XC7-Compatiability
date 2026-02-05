@@ -4,6 +4,7 @@ use std::thread;
 
 pub mod constants;
 pub mod device;
+pub mod global_mutex;
 
 use device::CorsairH150i;
 
@@ -31,8 +32,14 @@ pub fn run_aio_loop(rx: Receiver<Vec<u8>>) {
 
                 if let Some(device) = &device_opt {
                     if let Err(e) = device.send_image(&jpeg_frame) {
-                        eprintln!("[RUST] Write error (Dropping connection): {}", e);
-                        device_opt = None; 
+                        let err_msg = e.to_string();
+                        if err_msg.contains("Mutex timeout") {
+                            // Don't drop connection on lock contention, just skip this frame
+                            eprintln!("[RUST] Frame skipped (Mutex locked)");
+                        } else {
+                            eprintln!("[RUST] Write error (Dropping connection): {}", e);
+                            device_opt = None;
+                        }
                     }
                 }
             }

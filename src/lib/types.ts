@@ -1,4 +1,4 @@
-export type SensorType = 'Temperature' | 'Load' | 'Clock' | 'Power' | 'Voltage' | 'Data' | 'Level' | 'Control' | 'Factor' | 'Throughput';
+export type SensorType = 'Temperature' | 'Load' | 'Clock' | 'Power' | 'Voltage' | 'Data' | 'Level' | 'Factor' | 'Throughput' | 'Fan' | 'Flow';
 
 export interface Sensor {
     Id: string;
@@ -31,14 +31,14 @@ export interface ThemeOption {
 }
 
 export type RenderFunction = (
-    ctx: CanvasRenderingContext2D, 
-    w: number, 
-    h: number, 
+    ctx: CanvasRenderingContext2D,
+    w: number,
+    h: number,
     values: Record<string, number>,
     formatted: Record<string, string>,
-    config: Record<string, any>, 
+    config: Record<string, any>,
     tick: number,
-    assets: Record<string, any> 
+    assets: Record<string, any>
 ) => void;
 
 export interface ThemeDefinition {

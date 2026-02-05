@@ -10,19 +10,19 @@
     "frontendDist": "../build"
   },
   "app": {
-  "windows": [
-        {
-          "title": "HydroScreen",
-          "width": 1200,
-          "height": 800,
-          "decorations": false,
-          "transparent": true,
-          "shadow": true,
-          "visible": false, 
-          "resizable": true,
-          "fullscreen": false
-        }
-      ],
+    "windows": [
+      {
+        "title": "HydroScreen",
+        "width": 1200,
+        "height": 800,
+        "decorations": false,
+        "transparent": true,
+        "shadow": true,
+        "visible": false,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
     "security": {
       "csp": null
     }
@@ -37,8 +37,8 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-      "publisher": "UDPSendToFailed",
-      "externalBin": [
+    "publisher": "UDPSendToFailed",
+    "externalBin": [
       "binaries/lhm-bridge"
     ],
     "windows": {
