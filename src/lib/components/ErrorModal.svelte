@@ -24,7 +24,7 @@
 
 <div 
     use:portal
-    class="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-8 outline-none"
+    class="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-8 outline-none"
     transition:fade={{ duration: 150 }}
     on:click|self={() => dispatch('close')}
     on:keydown={handleKeydown}
@@ -32,7 +32,7 @@
     tabindex="0"
 >
     <div 
-        class="bg-zinc-900 border border-white/10 rounded-xl w-full max-w-sm shadow-2xl overflow-hidden p-6 text-center"
+        class="glass-modal w-full max-w-sm p-6 text-center"
         transition:scale={{ duration: 150, start: 0.95 }}
         role="dialog"
     >

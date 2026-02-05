@@ -277,8 +277,11 @@
 
 <div class="flex h-full w-full overflow-hidden">
     <!-- Left: Preview Canvas -->
-    <div class="flex-1 flex flex-col min-w-0 bg-gradient-to-br from-zinc-900 to-black relative">
-        <div class="h-16 flex items-center justify-between px-6 border-b border-white/5 bg-white/5 backdrop-blur-sm z-10 shrink-0">
+    <div class="flex-1 flex flex-col min-w-0 bg-zinc-950 relative overflow-hidden">
+        <!-- Ambient Background Spotlights -->
+        <div class="absolute top-[-50%] left-[-20%] w-[80%] h-[80%] bg-indigo-900/20 rounded-full blur-[120px] pointer-events-none mix-blend-screen opacity-70"></div>
+        <div class="absolute bottom-[-20%] right-[-10%] w-[60%] h-[60%] bg-blue-900/10 rounded-full blur-[100px] pointer-events-none mix-blend-screen opacity-60"></div>
+        <div class="h-20 flex items-start justify-between px-8 py-6 z-20 shrink-0">
             <div class="min-w-0">
                 <h1 class="text-xl font-bold text-white truncate">{activeTheme?.name || '...'}</h1>
                 <p class="text-xs text-zinc-400">{activeTheme?.description || ''}</p>
@@ -292,11 +295,11 @@
                     </div>
                 {/if}
 
-                <div class="flex bg-black/40 rounded-lg p-1 border border-white/5">
-                    <button on:click={() => activeTab = 'data'} class="flex items-center gap-2 px-3 py-1.5 rounded text-xs font-medium transition-colors {activeTab === 'data' ? 'bg-indigo-500/10 text-indigo-300 border border-indigo-500/30' : 'text-zinc-400 hover:text-white border border-transparent'}">
+                <div class="flex bg-black/60 backdrop-blur-md rounded-full p-1 border border-white/10 shadow-xl">
+                    <button on:click={() => activeTab = 'data'} class="flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-300 {activeTab === 'data' ? 'bg-indigo-500 text-white shadow-[0_0_15px_-3px_rgba(99,102,241,0.5)]' : 'text-zinc-500 hover:text-zinc-300'}">
                         <Activity size={14} /> Data
                     </button>
-                    <button on:click={() => activeTab = 'style'} class="flex items-center gap-2 px-3 py-1.5 rounded text-xs font-medium transition-colors {activeTab === 'style' ? 'bg-indigo-500/10 text-indigo-300 border border-indigo-500/30' : 'text-zinc-400 hover:text-white border border-transparent'}">
+                    <button on:click={() => activeTab = 'style'} class="flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-300 {activeTab === 'style' ? 'bg-indigo-500 text-white shadow-[0_0_15px_-3px_rgba(99,102,241,0.5)]' : 'text-zinc-500 hover:text-zinc-300'}">
                         <Palette size={14} /> Style
                     </button>
                 </div>
@@ -314,7 +317,7 @@
         >
             <div class="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-900/10 via-transparent to-transparent opacity-50 pointer-events-none"></div>
             
-            <div class="relative w-full max-w-[480px] aspect-square max-h-full pointer-events-none group"> 
+            <div class="relative w-full max-w-[65vh] aspect-square max-h-full pointer-events-none group transition-all duration-300 ease-out"> 
                 <div class="w-full h-full rounded-full ring-4 md:ring-8 ring-black shadow-2xl bg-black relative overflow-hidden">
                     <CanvasRenderer />
                 </div>
@@ -324,7 +327,7 @@
     </div>
 
     <!-- Right: Controls -->
-    <div class="w-[320px] md:w-[400px] border-l border-white/5 bg-zinc-900/80 backdrop-blur-xl flex flex-col shadow-2xl z-20 shrink-0">
+    <div class="w-[300px] lg:w-[360px] xl:w-[400px] border-l border-white/5 bg-zinc-900/80 backdrop-blur-xl flex flex-col shadow-2xl z-20 shrink-0 transition-all duration-300">
         {#if activeTab === 'data'}
             <div class="flex-1 flex flex-col min-h-0 animate-in slide-in-from-right-4 duration-300">
                 <div class="p-6 border-b border-white/5 shrink-0">
@@ -373,7 +376,7 @@
                 </div>
 
                 <div class="flex-1 overflow-y-auto p-4 space-y-2">
-                    <input type="text" bind:value={searchQuery} placeholder="Search sensors..." class="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50 mb-2"/>
+                    <input type="text" bind:value={searchQuery} placeholder="Search sensors..." class="w-full input-standard px-3 py-2 mb-2"/>
                     {#each filteredHardware as hw}
                         <div class="bg-transparent border border-white/5 rounded-xl overflow-hidden">
                             <button on:click={() => toggleHw(hw.Id)} class="w-full flex items-center gap-3 p-3 hover:bg-white/5 transition-colors">
@@ -416,78 +419,97 @@
                 <div class="space-y-6 flex-1">
                     {#if activeTheme?.options}
                         <!-- Global Style Options -->
-                        <div class="space-y-2 pb-4 border-b border-white/5">
-                            <div class="flex justify-between items-center h-5">
+                        <div class="bg-black/20 rounded-xl p-4 border border-white/5 space-y-3">
+                            <div class="flex justify-between items-center">
                                 <div class="flex items-center gap-2">
-                                    <label for="globalFontScale" class="text-sm font-medium text-zinc-300">Global Font Scale</label>
-                                    {#if isFontScaleModified}
-                                        <button 
-                                            on:click={resetFontScale} 
-                                            class="text-zinc-500 hover:text-indigo-400 transition-colors animate-in fade-in zoom-in duration-200" 
-                                            title="Reset to 100%"
-                                        >
-                                            <RotateCcw size={12} />
-                                        </button>
-                                    {/if}
+                                    <Type size={14} class="text-indigo-400"/>
+                                    <label for="globalFontScale" class="text-xs font-bold text-zinc-300 uppercase tracking-wider">Global Scaling</label>
                                 </div>
-                                <span class="text-xs font-mono text-indigo-400">{config['globalFontScale'] ?? 100}%</span>
+                                {#if isFontScaleModified}
+                                    <button 
+                                        on:click={resetFontScale} 
+                                        class="text-[10px] text-zinc-500 hover:text-indigo-400 flex items-center gap-1 transition-colors" 
+                                        title="Reset to 100%"
+                                    >
+                                        <RotateCcw size={10} />
+                                        <span>RESET</span>
+                                    </button>
+                                {/if}
                             </div>
-                            <input 
-                                id="globalFontScale"
-                                type="range" 
-                                min="50" 
-                                max="200" 
-                                value={config['globalFontScale'] ?? 100} 
-                                on:input={(e) => updateConfig('globalFontScale', parseInt(e.currentTarget.value))} 
-                                class="w-full accent-indigo-500 h-1 bg-white/10 rounded-lg appearance-none cursor-pointer"
-                            />
+                            
+                            <div class="flex items-center gap-3">
+                                <input 
+                                    id="globalFontScale"
+                                    type="range" 
+                                    min="50" 
+                                    max="200" 
+                                    step="5"
+                                    value={config['globalFontScale'] ?? 100} 
+                                    on:input={(e) => updateConfig('globalFontScale', parseInt(e.currentTarget.value))} 
+                                    class="flex-1 accent-indigo-500 h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer hover:bg-white/20 transition-colors"
+                                />
+                                <div class="relative w-16 shrink-0">
+                                    <input 
+                                        type="number" 
+                                        min="50" 
+                                        max="200"
+                                        value={config['globalFontScale'] ?? 100} 
+                                        on:input={(e) => updateConfig('globalFontScale', parseInt(e.currentTarget.value))}
+                                        class="w-full input-standard px-2 py-1 text-right font-mono text-indigo-300"
+                                    />
+                                    <span class="absolute right-6 top-1 text-[10px] text-zinc-600 pointer-events-none">%</span>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Range Configuration (Moved from Data Tab) -->
                          <!-- Show range config for ALL slots that have data mapped or just generic list? 
                               Let's show a section for "Data Ranges" regarding mapped slots -->
                         {#if activeTheme.slots.some(s => mapping[s.id])}
-                            <div class="space-y-4 pb-4 border-b border-white/5">
-                                <h4 class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Data Ranges</h4>
+                        <!-- Range Configuration -->
+                        {#if activeTheme.slots.some(s => mapping[s.id])}
+                            <div class="space-y-3">
+                                <h4 class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest px-1">Sensor Ranges</h4>
                                 {#each activeTheme.slots as slot}
                                     {#if mapping[slot.id]}
-                                        <div class="space-y-2">
-                                            <div class="flex justify-between items-center h-5">
-                                                <div class="flex items-center gap-2">
-                                                    <label for="{slot.id}Min" class="text-sm font-medium text-zinc-300">{slot.label}</label>
-                                                    {#if isSlotRangeModified(slot.id)}
-                                                        <button 
-                                                            on:click={() => resetSlotRange(slot.id)} 
-                                                            class="text-zinc-500 hover:text-indigo-400 transition-colors animate-in fade-in zoom-in duration-200" 
-                                                            title="Reset range"
-                                                        >
-                                                            <RotateCcw size={12} />
-                                                        </button>
-                                                    {/if}
+                                        <div class="bg-black/20 rounded-xl p-3 border border-white/5 space-y-3">
+                                            <div class="flex justify-between items-start">
+                                                <div>
+                                                    <label for="{slot.id}Min" class="block text-xs font-bold text-zinc-300 mb-0.5">{slot.label}</label>
+                                                    <span class="block text-[10px] text-zinc-500 truncate max-w-[150px]">
+                                                        { $rawHardware.find(h => h.Id === mapping[slot.id]?.hwId)?.Sensors.find(s => s.Id === mapping[slot.id]?.sensorId)?.Name ?? '...' }
+                                                    </span>
                                                 </div>
-                                                <span class="text-[10px] text-zinc-500 italic truncate max-w-[150px]">
-                                                    { $rawHardware.find(h => h.Id === mapping[slot.id]?.hwId)?.Sensors.find(s => s.Id === mapping[slot.id]?.sensorId)?.Name }
-                                                </span>
+                                                {#if isSlotRangeModified(slot.id)}
+                                                    <button 
+                                                        on:click={() => resetSlotRange(slot.id)} 
+                                                        class="text-zinc-500 hover:text-indigo-400 transition-colors p-1" 
+                                                        title="Reset range"
+                                                    >
+                                                        <RotateCcw size={12} />
+                                                    </button>
+                                                {/if}
                                             </div>
-                                            <div class="flex gap-2">
-                                                <div class="relative flex-1">
-                                                    <span class="absolute left-2 top-1.5 text-[10px] text-zinc-600">MIN</span>
+
+                                            <div class="grid grid-cols-2 gap-3">
+                                                <div class="relative group">
+                                                    <span class="absolute left-2.5 top-2 text-[10px] font-bold text-zinc-600 group-focus-within:text-indigo-500/50 transition-colors">MIN</span>
                                                     <input 
                                                         id="{slot.id}Min"
                                                         type="number" 
                                                         value={config[`${slot.id}Min`] ?? 0}
                                                         on:input={(e) => updateConfig(`${slot.id}Min`, parseFloat(e.currentTarget.value))}
-                                                        class="w-full bg-black/20 border border-white/10 rounded px-2 pt-4 pb-1 text-xs text-white focus:outline-none focus:border-indigo-500/50"
+                                                        class="w-full input-standard pl-2 pr-2 pt-5 pb-1.5 font-mono"
                                                     />
                                                 </div>
-                                                <div class="relative flex-1">
-                                                    <span class="absolute left-2 top-1.5 text-[10px] text-zinc-600">MAX</span>
+                                                <div class="relative group">
+                                                    <span class="absolute left-2.5 top-2 text-[10px] font-bold text-zinc-600 group-focus-within:text-emerald-500/50 transition-colors">MAX</span>
                                                     <input 
                                                         id="{slot.id}Max"
                                                         type="number" 
                                                         value={config[`${slot.id}Max`] ?? 100}
                                                         on:input={(e) => updateConfig(`${slot.id}Max`, parseFloat(e.currentTarget.value))}
-                                                        class="w-full bg-black/20 border border-white/10 rounded px-2 pt-4 pb-1 text-xs text-white focus:outline-none focus:border-indigo-500/50"
+                                                        class="w-full input-standard pl-2 pr-2 pt-5 pb-1.5 font-mono focus:border-emerald-500/50 focus:bg-emerald-500/5"
                                                     />
                                                 </div>
                                             </div>
@@ -496,107 +518,161 @@
                                 {/each}
                             </div>
                         {/if}
+                        {/if}
 
                         <!-- Theme Specific Options -->
-                        {#each activeTheme.options as opt}
-                            <div class="space-y-2">
-                                <div class="flex justify-between items-center h-5">
-                                    <div class="flex items-center gap-2">
-                                        <label for={opt.id} class="text-sm font-medium text-zinc-300">{opt.label}</label>
-                                        {#if isModified(opt)}
-                                            <button 
-                                                on:click={() => resetOption(opt)} 
-                                                class="text-zinc-500 hover:text-indigo-400 transition-colors animate-in fade-in zoom-in duration-200" 
-                                                title="Reset to default"
-                                            >
-                                                <RotateCcw size={12} />
-                                            </button>
+                        <div class="space-y-3 pt-2">
+                            {#each activeTheme.options as opt}
+                                <div class="bg-black/20 rounded-xl p-3 border border-white/5 space-y-2">
+                                    <div class="flex justify-between items-center h-5">
+                                        <div class="flex items-center gap-2">
+                                            <label for={opt.id} class="text-xs font-bold text-zinc-300 uppercase tracking-wider">{opt.label}</label>
+                                            {#if isModified(opt)}
+                                                <button 
+                                                    on:click={() => resetOption(opt)} 
+                                                    class="text-zinc-500 hover:text-indigo-400 transition-colors p-0.5 animate-in fade-in zoom-in duration-200" 
+                                                    title="Reset to default"
+                                                >
+                                                    <RotateCcw size={10} />
+                                                </button>
+                                            {/if}
+                                        </div>
+                                        {#if opt.type === 'range'}
+                                            <span class="text-[10px] font-mono text-indigo-400 bg-indigo-500/10 px-1.5 rounded">{config[opt.id] ?? opt.default}</span>
                                         {/if}
                                     </div>
-                                    {#if opt.type === 'range'}
-                                        <span class="text-xs font-mono text-indigo-400">{config[opt.id] ?? opt.default}</span>
-                                    {/if}
-                                </div>
 
-                                {#if opt.type === 'text'}
-                                    <div class="relative">
-                                        <input type="text" id={opt.id} value={config[opt.id] ?? opt.default} on:input={(e) => updateConfig(opt.id, e.currentTarget.value)} class="w-full h-10 bg-black/20 border border-white/10 rounded-lg pl-9 pr-3 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-colors"/>
-                                        <Type size={16} class="absolute left-3 top-2.5 text-zinc-500" />
-                                    </div>
-                                {:else if opt.type === 'color'}
-                                    <div class="flex gap-3">
-                                        <div class="w-10 h-10 rounded-lg border border-white/10 shadow-inner shrink-0" style="background-color: {config[opt.id] ?? opt.default}"></div>
-                                        <div class="relative flex-1">
-                                            <input type="text" id={opt.id} value={config[opt.id] ?? opt.default} class="w-full h-10 bg-black/20 border border-white/10 rounded-lg px-3 text-sm font-mono text-zinc-400" readonly/>
-                                            <input type="color" value={config[opt.id] ?? opt.default} on:input={(e) => updateConfig(opt.id, e.currentTarget.value)} class="absolute inset-0 opacity-0 cursor-pointer w-full h-full"/>
+                                    {#if opt.type === 'text'}
+                                        <div class="relative group">
+                                            <input 
+                                                type="text" 
+                                                id={opt.id} 
+                                                value={config[opt.id] ?? opt.default} 
+                                                on:input={(e) => updateConfig(opt.id, e.currentTarget.value)} 
+                                                class="w-full h-9 input-standard pl-8 pr-3"
+                                            />
+                                            <Type size={14} class="absolute left-2.5 top-2.5 text-zinc-500 group-focus-within:text-indigo-400 transition-colors" />
                                         </div>
-                                    </div>
-                                {:else if opt.type === 'range'}
-                                    <input type="range" id={opt.id} min={opt.min} max={opt.max} value={config[opt.id] ?? opt.default} on:input={(e) => updateConfig(opt.id, parseInt(e.currentTarget.value))} class="w-full accent-indigo-500 h-1 bg-white/10 rounded-lg appearance-none cursor-pointer"/>
-                                {:else if opt.type === 'boolean'}
-                                    <button id={opt.id} class="w-full flex items-center justify-between p-3 rounded-lg border transition-all {(config[opt.id] ?? opt.default) ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-100' : 'bg-black/20 border-white/10 text-zinc-500'}" on:click={() => updateConfig(opt.id, !(config[opt.id] ?? opt.default))}>
-                                        <span class="text-sm">{(config[opt.id] ?? opt.default) ? 'Enabled' : 'Disabled'}</span>
-                                        <div class="w-8 h-4 rounded-full relative transition-colors {(config[opt.id] ?? opt.default) ? 'bg-indigo-500' : 'bg-zinc-700'}"><div class="absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full transition-transform {(config[opt.id] ?? opt.default) ? 'translate-x-4' : ''}"></div></div>
-                                    </button>
-                                {:else if opt.type === 'file'}
-                                    <div class="flex gap-2">
-                                        <div class="relative flex-1">
-                                            <input type="text" id={opt.id} value={config[opt.id] ? config[opt.id].split(/[\\/]/).pop() : 'No file'} class="w-full h-10 bg-black/20 border border-white/10 rounded-lg px-3 text-sm font-mono text-zinc-500 truncate" readonly/>
+                                    {:else if opt.type === 'color'}
+                                        <div class="flex gap-2">
+                                            <div class="w-9 h-9 rounded-lg border border-white/10 shadow-inner shrink-0 relative overflow-hidden">
+                                                <div class="absolute inset-0" style="background-color: {config[opt.id] ?? opt.default}"></div>
+                                                <input 
+                                                    type="color" 
+                                                    value={config[opt.id] ?? opt.default} 
+                                                    on:input={(e) => updateConfig(opt.id, e.currentTarget.value)} 
+                                                    class="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                                                />
+                                            </div>
+                                            <div class="relative flex-1">
+                                                <input 
+                                                    type="text" 
+                                                    id={opt.id} 
+                                                    value={config[opt.id] ?? opt.default} 
+                                                    class="w-full h-9 input-standard px-3 font-mono text-zinc-400 focus:border-white/20 uppercase" 
+                                                    readonly
+                                                />
+                                            </div>
                                         </div>
-                                        {#if config[opt.id]}
-                                            <button on:click={() => updateConfig(opt.id, null)} class="h-10 w-10 flex items-center justify-center bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors border border-red-500/20" title="Clear File">
-                                                <X size={16} />
-                                            </button>
-                                        {/if}
-                                        <button on:click={() => selectFile(opt.id)} class="h-10 px-4 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 rounded-lg transition-colors flex items-center gap-2"><ImageIcon size={16} /><span class="text-xs font-bold">BROWSE</span></button>
-                                    </div>
-                                {:else if opt.type === 'font'}
-                                    <div class="relative font-dropdown-container">
+                                    {:else if opt.type === 'range'}
+                                        <div class="flex items-center gap-3 pt-1">
+                                            <input 
+                                                type="range" 
+                                                id={opt.id} 
+                                                min={opt.min} 
+                                                max={opt.max} 
+                                                value={config[opt.id] ?? opt.default} 
+                                                on:input={(e) => updateConfig(opt.id, parseInt(e.currentTarget.value))} 
+                                                class="flex-1 accent-indigo-500 h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer hover:bg-white/20 transition-colors"
+                                            />
+                                        </div>
+                                    {:else if opt.type === 'boolean'}
                                         <button 
-                                            class="w-full h-10 bg-black/20 border border-white/10 rounded-lg px-3 flex items-center justify-between hover:bg-white/5 transition-colors"
-                                            on:click={() => toggleFontDropdown(opt.id)}
+                                            id={opt.id} 
+                                            class="w-full flex items-center justify-between p-2 rounded-lg border transition-all {(config[opt.id] ?? opt.default) ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-100' : 'bg-black/40 border-white/10 text-zinc-500 hover:bg-white/5'}" 
+                                            on:click={() => updateConfig(opt.id, !(config[opt.id] ?? opt.default))}
                                         >
-                                            <span class="text-sm text-zinc-200" style="font-family: {config[opt.id] ?? opt.default}">{config[opt.id] ?? opt.default}</span>
-                                            <ChevronDown size={14} class="text-zinc-500" />
+                                            <span class="text-xs font-medium">{(config[opt.id] ?? opt.default) ? 'Enabled' : 'Disabled'}</span>
+                                            <div class="w-7 h-4 rounded-full relative transition-colors {(config[opt.id] ?? opt.default) ? 'bg-indigo-500' : 'bg-zinc-700'}">
+                                                <div class="absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full transition-transform {(config[opt.id] ?? opt.default) ? 'translate-x-3' : ''} shadow-sm"></div>
+                                            </div>
                                         </button>
-
-                                        {#if openFontDropdownId === opt.id}
-                                            <div 
-                                                class="absolute top-full left-0 right-0 mt-1 bg-zinc-900 border border-white/10 rounded-lg shadow-xl z-50 overflow-hidden max-h-60 flex flex-col"
-                                                transition:slide={{ duration: 200 }}
+                                    {:else if opt.type === 'file'}
+                                        <div class="flex gap-2">
+                                            <div class="relative flex-1 group">
+                                                <input 
+                                                    type="text" 
+                                                    id={opt.id} 
+                                                    value={config[opt.id] ? config[opt.id].split(/[\\/]/).pop() : 'No file selected'} 
+                                                    class="w-full h-9 input-standard px-3 font-mono text-zinc-500 truncate pointer-events-none" 
+                                                    readonly
+                                                />
+                                            </div>
+                                            {#if config[opt.id]}
+                                                <button 
+                                                    on:click={() => updateConfig(opt.id, null)} 
+                                                    class="h-9 w-9 flex items-center justify-center bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors border border-red-500/20" 
+                                                    title="Clear File"
+                                                >
+                                                    <X size={14} />
+                                                </button>
+                                            {/if}
+                                            <button 
+                                                on:click={() => selectFile(opt.id)} 
+                                                class="h-9 px-3 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 rounded-lg transition-colors flex items-center gap-2 text-xs font-bold"
                                             >
-                                                <div class="p-2 border-b border-white/5 sticky top-0 bg-zinc-900 z-10">
-                                                    <div class="relative">
-                                                        <Search size={14} class="absolute left-2.5 top-2.5 text-zinc-500"/>
-                                                        <input 
-                                                            type="text" 
-                                                            bind:value={fontSearchQuery} 
-                                                            placeholder="Search fonts..." 
-                                                            class="w-full bg-black/40 border border-white/5 rounded-md pl-8 pr-2 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500/50"
-                                                            on:click|stopPropagation
-                                                        />
+                                                <ImageIcon size={14} />
+                                                <span>BROWSE</span>
+                                            </button>
+                                        </div>
+                                    {:else if opt.type === 'font'}
+                                        <div class="relative font-dropdown-container">
+                                            <button 
+                                                class="w-full h-9 input-standard px-3 flex items-center justify-between hover:bg-white/5 group"
+                                                on:click={() => toggleFontDropdown(opt.id)}
+                                            >
+                                                <span class="text-xs text-zinc-300 group-hover:text-white transition-colors" style="font-family: {config[opt.id] ?? opt.default}">{config[opt.id] ?? opt.default}</span>
+                                                <ChevronDown size={14} class="text-zinc-500 group-hover:text-zinc-300" />
+                                            </button>
+    
+                                            {#if openFontDropdownId === opt.id}
+                                                <div 
+                                                    class="absolute top-full left-0 right-0 mt-1 bg-zinc-900 border border-white/10 rounded-lg shadow-xl z-50 overflow-hidden max-h-48 flex flex-col"
+                                                    transition:slide={{ duration: 150 }}
+                                                >
+                                                    <div class="p-1.5 border-b border-white/5 sticky top-0 bg-zinc-900 z-10">
+                                                        <div class="relative">
+                                                            <Search size={12} class="absolute left-2.5 top-2 text-zinc-500"/>
+                                                            <input 
+                                                                type="text" 
+                                                                bind:value={fontSearchQuery} 
+                                                                placeholder="Search..." 
+                                                                class="w-full bg-black/40 border border-white/5 rounded pl-7 pr-2 py-1 text-[10px] text-white focus:outline-none focus:border-indigo-500/50"
+                                                                on:click|stopPropagation
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <div class="overflow-y-auto flex-1 p-1">
+                                                        {#each filteredFonts as font}
+                                                            <button 
+                                                                class="w-full text-left px-2 py-1.5 text-xs hover:bg-white/10 rounded transition-colors {config[opt.id] === font ? 'text-indigo-400 bg-indigo-500/10 font-bold' : 'text-zinc-400'}"
+                                                                style="font-family: {font}"
+                                                                on:click={() => selectFont(opt.id, font)}
+                                                            >
+                                                                {font}
+                                                            </button>
+                                                        {/each}
+                                                        {#if filteredFonts.length === 0}
+                                                            <div class="px-2 py-2 text-[10px] text-zinc-600 text-center italic">No fonts found</div>
+                                                        {/if}
                                                     </div>
                                                 </div>
-                                                <div class="overflow-y-auto flex-1 p-1">
-                                                    {#each filteredFonts as font}
-                                                        <button 
-                                                            class="w-full text-left px-3 py-2 text-sm hover:bg-white/10 rounded-md transition-colors {config[opt.id] === font ? 'text-indigo-400 bg-indigo-500/10' : 'text-zinc-300'}"
-                                                            style="font-family: {font}"
-                                                            on:click={() => selectFont(opt.id, font)}
-                                                        >
-                                                            {font}
-                                                        </button>
-                                                    {/each}
-                                                    {#if filteredFonts.length === 0}
-                                                        <div class="px-3 py-2 text-xs text-zinc-500 text-center">No fonts found</div>
-                                                    {/if}
-                                                </div>
-                                            </div>
-                                        {/if}
-                                    </div>
-                                {/if}
-                            </div>
-                        {/each}
+                                            {/if}
+                                        </div>
+                                    {/if}
+                                </div>
+                            {/each}
+                        </div>
                     {/if}
                 </div>
             </div>

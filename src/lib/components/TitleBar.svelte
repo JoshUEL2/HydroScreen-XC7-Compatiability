@@ -22,7 +22,7 @@
 </script>
 
 <div data-tauri-drag-region class="h-10 bg-zinc-900 border-b border-white/5 flex items-center justify-between pr-0 pl-4 select-none shrink-0 z-50">
-    <div data-tauri-drag-region class="flex items-center gap-3 h-full w-[280px]">
+    <div data-tauri-drag-region class="flex items-center gap-3 h-full w-[var(--sidebar-width)]">
         <div class="p-1 bg-indigo-500/10 rounded-md">
             <img src="/icon.png" class="w-3.5 h-3.5" alt="app icon" />
         </div>

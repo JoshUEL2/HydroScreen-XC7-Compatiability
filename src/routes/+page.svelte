@@ -36,7 +36,7 @@
         <TitleBar lhmStatus={$isConnected ? 'active' : 'waiting'} deviceStatus={'connected'} />
 
         <div class="flex-1 flex overflow-hidden relative">
-            <aside class="w-[280px] shrink-0 z-30 shadow-2xl">
+            <aside class="w-[var(--sidebar-width)] shrink-0 z-30 shadow-2xl">
                 <ThemeSelector on:openSettings={() => showSettings = true} />
             </aside>
 

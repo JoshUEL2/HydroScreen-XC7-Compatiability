@@ -17,7 +17,7 @@
 
 <!-- Backdrop -->
 <div 
-    class="absolute inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-8 outline-none"
+    class="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-8 outline-none"
     transition:fade={{ duration: 200 }}
     on:click|self={close}
     on:keydown={handleKeydown}
@@ -26,7 +26,7 @@
 >
     <!-- Modal Content -->
     <div 
-        class="bg-zinc-900 border border-white/10 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden"
+        class="glass-modal w-full max-w-md"
         transition:scale={{ duration: 200, start: 0.95 }}
         role="dialog"
         aria-modal="true"
