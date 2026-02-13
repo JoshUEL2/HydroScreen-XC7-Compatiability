@@ -12,6 +12,7 @@ use tauri_plugin_autostart::MacosLauncher;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{TrayIconBuilder, MouseButton, TrayIconEvent};
 use tauri_plugin_log::{Target, TargetKind, RotationStrategy};
+use log::info;
 
 pub struct ImageChannel {
     pub tx: Mutex<Sender<Vec<u8>>>,
@@ -45,8 +46,8 @@ fn main() {
         let _ = std::fs::create_dir_all(&log_dir);
     }
 
-    println!("[RUST] Starting HydroScreen (Debug: {})", debug_mode);
-    println!("[RUST] Log Dir: {:?}", log_dir);
+    info!("[RUST] Starting HydroScreen (Debug: {})", debug_mode);
+    info!("[RUST] Log Dir: {:?}", log_dir);
 
     tauri::Builder::default()
         .plugin(tauri_plugin_log::Builder::new()

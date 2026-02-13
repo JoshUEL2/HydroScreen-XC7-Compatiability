@@ -1,6 +1,7 @@
 use super::constants::{VID, SUPPORTED_PIDS, IMG_TX};
 use anyhow::{Result, anyhow};
 use hidapi::{HidApi, HidDevice};
+use log::info;
 
 pub struct CorsairH150i {
     pub device: HidDevice,
@@ -12,7 +13,7 @@ impl CorsairH150i {
         
         for &pid in SUPPORTED_PIDS {
             if let Ok(device) = api.open(VID, pid) {
-                println!("[RUST] Connected to Corsair LCD (PID: {:04x})", pid);
+                info!("[RUST] Connected to Corsair LCD (PID: {:04x})", pid);
                 return Ok(Self { device });
             }
         }

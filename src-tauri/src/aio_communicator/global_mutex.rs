@@ -4,16 +4,18 @@ use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
 use std::io;
 
+/// A cross-process mutex using Windows Named Mutexes.
 pub struct GlobalMutex {
     handle: HANDLE,
 }
 
 impl GlobalMutex {
+    /// Create or open a named mutex.
     pub fn new(name: &str) -> io::Result<Self> {
         let mut wide: Vec<u16> = OsStr::new(name).encode_wide().collect();
         wide.push(0);
         
-        // CreateMutexW will open the existing mutex if it exists
+        // CreateMutexW will open the existing mutex if it exists.
         let handle = unsafe { CreateMutexW(std::ptr::null(), FALSE, wide.as_ptr()) };
         
         if handle == 0 {
@@ -23,9 +25,10 @@ impl GlobalMutex {
         Ok(Self { handle })
     }
 
+    /// Acquire the lock.
+    /// 
+    /// Waits up to 3000ms. If it fails, it assumes the mutex is busy to avoid freezing the caller.
     pub fn lock(&self) -> io::Result<MutexGuard<'_>> {
-        // Wait up to 1000ms. If we can't get it, we assume it's busy and fail to avoid freezing the UI thread (though this is running in a potentially async task, blocking here is bad if it's long).
-        // However, standard CreateMutex behavior is usually accompanied by ReleaseMutex.
         // Wait up to 3000ms to be safe (C# uses 1000ms+transactions).
         let result = unsafe { WaitForSingleObject(self.handle, 3000) };
         

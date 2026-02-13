@@ -10,7 +10,7 @@ use std::os::windows::process::CommandExt;
 use std::sync::{Arc};
 use std::sync::atomic::{AtomicBool, Ordering};
 
-// Windows constant to hide the console window created by PowerShell
+// Windows constant to hide the console window created by PowerShell.
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 lazy_static::lazy_static! {
@@ -21,11 +21,11 @@ lazy_static::lazy_static! {
 #[tauri::command]
 pub fn retry_sidecar(app: AppHandle, debug_mode: bool) {
     if SPAWN_THREAD_RUNNING.load(Ordering::SeqCst) {
-        // If already running, just signal to retry
+        // If already running, just signal to retry.
         SHOULD_RETRY.store(true, Ordering::SeqCst);
         info!("Retry signal sent to existing spawn thread.");
     } else {
-        // If not running, start it
+        // If not running, start it.
         info!("Restarting spawn thread...");
         spawn_sensor_bridge(app, debug_mode);
     }

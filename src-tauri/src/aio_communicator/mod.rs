@@ -1,6 +1,7 @@
 use crossbeam_channel::Receiver;
 use std::time::Duration;
 use std::thread;
+use log::{info, error, warn};
 
 pub mod constants;
 pub mod device;
@@ -9,7 +10,7 @@ pub mod global_mutex;
 use device::CorsairH150i;
 
 pub fn run_aio_loop(rx: Receiver<Vec<u8>>) {
-    println!("[RUST] Starting AIO Loop...");
+    info!("[RUST] Starting AIO Loop...");
 
     let mut device_opt: Option<CorsairH150i> = None;
 
@@ -19,11 +20,11 @@ pub fn run_aio_loop(rx: Receiver<Vec<u8>>) {
                 if device_opt.is_none() {
                     match CorsairH150i::new() {
                         Ok(d) => {
-                            println!("[RUST] Corsair Device Connected!");
+                            info!("[RUST] Corsair Device Connected!");
                             device_opt = Some(d);
                         },
                         Err(e) => {
-                            eprintln!("[RUST] Device not found: {}", e);
+                            error!("[RUST] Device not found: {}", e);
                             thread::sleep(Duration::from_millis(2000));
                             continue;
                         }
@@ -35,9 +36,9 @@ pub fn run_aio_loop(rx: Receiver<Vec<u8>>) {
                         let err_msg = e.to_string();
                         if err_msg.contains("Mutex timeout") {
                             // Don't drop connection on lock contention, just skip this frame
-                            eprintln!("[RUST] Frame skipped (Mutex locked)");
+                            warn!("[RUST] Frame skipped (Mutex locked)");
                         } else {
-                            eprintln!("[RUST] Write error (Dropping connection): {}", e);
+                            error!("[RUST] Write error (Dropping connection): {}", e);
                             device_opt = None;
                         }
                     }
@@ -45,7 +46,7 @@ pub fn run_aio_loop(rx: Receiver<Vec<u8>>) {
             }
             Err(_) => {
                 if device_opt.is_some() {
-                    println!("[RUST] Idle timeout (10s) - Closing device connection.");
+                    info!("[RUST] Idle timeout (10s) - Closing device connection.");
                     device_opt = None;
                 }
             }

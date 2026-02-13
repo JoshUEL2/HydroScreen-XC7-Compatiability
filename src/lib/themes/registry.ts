@@ -15,9 +15,11 @@ export const themes: ThemeDefinition[] = [
 ];
 
 /**
- * CONTRIBUTOR GUIDE:
- * 1. Create a file in ./library/your_theme_name.ts
- * 2. Implement the ThemeDefinition interface
- * 3. Import it above
- * 4. Add it to the 'themes' array
+ * == THEME REGISTRY ==
+ * 
+ * Contributor Guide:
+ * 1. Create a definition file in `./library/<theme_name>.ts`
+ * 2. Implement the `ThemeDefinition` interface.
+ * 3. Import the theme module below.
+ * 4. Add it to the `themes` array constant.
  */

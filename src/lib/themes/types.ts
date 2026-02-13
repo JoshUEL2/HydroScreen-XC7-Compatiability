@@ -16,11 +16,17 @@ export interface ThemeOption {
     max?: number;
 }
 
-// The Render Function Signature
-// ctx: The Canvas Context
-// w, h: Dimensions (480x480)
-// values: The sensor data mapped by the user
-// tick: A continuous counter (0, 1, 2...) for calculating animations
+/**
+ * The Render Function Signature
+ * @param ctx The Canvas Context
+ * @param w Width (480)
+ * @param h Height (480)
+ * @param values The sensor data mapped by the user
+ * @param formatted Formatted string values
+ * @param config Theme configuration values
+ * @param tick A continuous counter (0, 1, 2...) for calculating animations
+ * @param assets Loaded assets (images, etc.)
+ */
 export type RenderFunction = (
     ctx: CanvasRenderingContext2D,
     w: number,

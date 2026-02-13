@@ -12,16 +12,15 @@ export interface GifData {
 
 // Single, reliable JS-based loader. No more fallback logic.
 export async function loadGif(url: string): Promise<GifData> {
-    console.log('[GIF Loader] Using JS Parser (gifuct-js)');
 
     const resp = await fetch(url);
     const buffer = await resp.arrayBuffer();
-    
+
     // Safety: Prevent crash on >50MB GIFs
     if (buffer.byteLength > 50 * 1024 * 1024) {
         throw new Error("GIF file is too large (Max 50MB)");
     }
-    
+
     const gif = parseGIF(buffer);
     const rawFrames = decompressFrames(gif, true);
 
@@ -48,14 +47,14 @@ export async function loadGif(url: string): Promise<GifData> {
     outCanvas.width = targetWidth;
     outCanvas.height = targetHeight;
     const outCtx = outCanvas.getContext('2d', { willReadFrequently: true });
-    
+
     if (!compCtx || !outCtx) throw new Error("Canvas init failed");
 
-    const processedFrames: { delay: number; image: ImageBitmap }[] = [];
+    const processedFrames: { delay: number; image: ImageData }[] = [];
     let totalTime = 0;
     let backupFrameData: ImageData | null = null;
 
-    // --- The Correct Compositing Loop ---
+    // --- Frame Compositing Loop ---
     for (const frame of rawFrames) {
         const dims = frame.dims;
 
@@ -64,9 +63,11 @@ export async function loadGif(url: string): Promise<GifData> {
             backupFrameData = compCtx.getImageData(0, 0, gifWidth, gifHeight);
         }
 
-        // CRITICAL FIX: Create an ImageBitmap from the patch data first.
-        // This is the correct way to handle raw pixel arrays for drawing.
-        const patchBitmap = await createImageBitmap(new ImageData(frame.patch, dims.width, dims.height));
+        // Create an ImageBitmap from the patch data.
+        // This ensures correct handling of raw pixel arrays for drawing.
+        // Note: Cast the patch to Uint8ClampedArray to satisfy stricter TS types for ImageData
+        const patchData = new Uint8ClampedArray(frame.patch);
+        const patchBitmap = await createImageBitmap(new ImageData(patchData, dims.width, dims.height));
 
         // Draw the patch bitmap onto the main composition canvas
         compCtx.drawImage(patchBitmap, dims.left, dims.top);
@@ -74,10 +75,10 @@ export async function loadGif(url: string): Promise<GifData> {
         // Snapshot the COMPOSITE frame and resize it
         outCtx.clearRect(0, 0, targetWidth, targetHeight);
         outCtx.drawImage(compCanvas, 0, 0, targetWidth, targetHeight);
-        
+
         // Store the final, resized bitmap
         const finalImageData = outCtx.getImageData(0, 0, targetWidth, targetHeight);
-        
+
         const safeDelay = Math.max(frame.delay, 30);
         processedFrames.push({ delay: safeDelay, image: finalImageData });
         totalTime += safeDelay;
@@ -93,9 +94,8 @@ export async function loadGif(url: string): Promise<GifData> {
         // Disposal 1 or 0: Do nothing, keep the frame as is.
     }
 
-    console.log(`[GIF Loader] Succeeded. Parsed ${processedFrames.length} frames.`);
-    return { 
-        frames: processedFrames, 
+    return {
+        frames: processedFrames,
         totalTime,
         width: targetWidth,
         height: targetHeight

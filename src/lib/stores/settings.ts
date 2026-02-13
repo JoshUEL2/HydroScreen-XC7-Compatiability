@@ -11,14 +11,14 @@ export const settingsReady = writable(false);
 
 interface AppSettings {
     activeThemeId: string;
-    mappings: Record<string, SensorMapping>; 
-    themeConfigs: Record<string, Record<string, any>>; 
+    mappings: Record<string, SensorMapping>;
+    themeConfigs: Record<string, Record<string, any>>;
     appBehavior: {
         minimizeToTray: boolean;
         autoStart: boolean;
         startMinimized: boolean;
     };
-    customThemes?: string[]; 
+    customThemes?: string[];
 }
 
 const defaultSettings: AppSettings = {
@@ -46,7 +46,7 @@ function createSettingsStore() {
             try {
                 const diskStore = await load(STORE_PATH);
                 const val = await diskStore.get<AppSettings>('config');
-                
+
                 if (val) {
                     if (val.customThemes && val.customThemes.length > 0) {
                         try {
@@ -62,7 +62,7 @@ function createSettingsStore() {
                                     await writeTextFile(`themes/${id}.js`, code, { baseDir: BaseDirectory.AppData });
                                 }
                             }
-                            
+
                             val.customThemes = [];
                             await diskStore.set('config', val);
                             await diskStore.save();
@@ -73,12 +73,12 @@ function createSettingsStore() {
                         }
                     }
 
-                    set({ 
-                        ...defaultSettings, 
-                        ...val, 
+                    set({
+                        ...defaultSettings,
+                        ...val,
                         appBehavior: { ...defaultSettings.appBehavior, ...val.appBehavior }
                     });
-                    
+
                     const shouldAutoStart = val.appBehavior?.autoStart ?? false;
                     const currentlyEnabled = await isEnabled();
                     if (shouldAutoStart && !currentlyEnabled) await enable();
@@ -93,7 +93,7 @@ function createSettingsStore() {
         setActiveTheme: async (id: string) => {
             update(s => {
                 const next = { ...s, activeThemeId: id };
-                triggerSave(next); 
+                triggerSave(next);
                 return next;
             });
         },
@@ -111,7 +111,7 @@ function createSettingsStore() {
                 const next = { ...s };
                 if (!next.themeConfigs[themeId]) next.themeConfigs[themeId] = {};
                 next.themeConfigs[themeId][optionId] = value;
-                triggerSave(next, 500); 
+                triggerSave(next, 500);
                 return next;
             });
         },
@@ -134,8 +134,7 @@ function createSettingsStore() {
                 triggerSave(next);
                 return next;
             });
-        },
-        addCustomTheme: (code: string) => { return; }
+        }
     };
 }
 

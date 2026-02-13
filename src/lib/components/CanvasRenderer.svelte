@@ -1,42 +1,53 @@
 <script lang="ts">
-    import { onMount, onDestroy } from 'svelte';
-    import { invoke } from '@tauri-apps/api/core';
-    import { readFile, BaseDirectory } from '@tauri-apps/plugin-fs';
-    import { rawHardware, lastUpdate } from '$lib/stores/sensors';
-    import { settings } from '$lib/stores/settings';
-    import { themeRegistry } from '$lib/stores/themeStore';
-    import { formatUnit } from '$lib/utils';
-    import { loadGif, type GifData } from '$lib/gif_utils';
-    import { WifiOff, Loader2 } from 'lucide-svelte';
+    import { onMount, onDestroy } from "svelte";
+    import { invoke } from "@tauri-apps/api/core";
+    import { readFile, BaseDirectory } from "@tauri-apps/plugin-fs";
+    import { rawHardware, lastUpdate } from "$lib/stores/sensors";
+    import { settings } from "$lib/stores/settings";
+    import { themeRegistry } from "$lib/stores/themeStore";
+    import { formatUnit } from "$lib/utils";
+    import { loadGif, type GifData } from "$lib/gif_utils";
+    import { WifiOff, Loader2 } from "lucide-svelte";
 
     let canvas: HTMLCanvasElement;
     let ctx: CanvasRenderingContext2D;
     let frameId: number;
-    
+
     let isSending = false;
-    let tick = 0; 
+    let tick = 0;
     let lastRenderTime = 0;
     let isOffline = false;
     let loadedAssets: Record<string, HTMLImageElement | GifData> = {};
 
     const TARGET_FPS = 30;
-    const FRAME_INTERVAL = 1000 / TARGET_FPS; 
+    const FRAME_INTERVAL = 1000 / TARGET_FPS;
     const OFFLINE_TIMEOUT = 2500;
 
-    $: activeTheme = $themeRegistry.find(t => t.id === $settings.activeThemeId);
+    $: activeTheme = $themeRegistry.find(
+        (t) => t.id === $settings.activeThemeId,
+    );
     $: mapping = $settings.mappings[$settings.activeThemeId] || {};
     $: config = $settings.themeConfigs[$settings.activeThemeId] || {};
 
     // Safety: Ensure options exist
-    $: effectiveConfig = activeTheme ? {
-        ...activeTheme.options?.reduce((acc, opt) => ({...acc, [opt.id]: opt.default}), {}),
-        ...config
-    } : {};
-    
-    $: fileAssetsToLoad = activeTheme?.options
-        ?.filter(opt => opt.type === 'file')
-        .map(opt => ({ id: opt.id, path: effectiveConfig[opt.id] })) || [];
-    
+    $: effectiveConfig = activeTheme
+        ? {
+              ...activeTheme.options?.reduce(
+                  (acc, opt) => ({ ...acc, [opt.id]: opt.default }),
+                  {},
+              ),
+              ...config,
+          }
+        : {};
+
+    $: fileAssetsToLoad =
+        activeTheme?.options
+            ?.filter((opt) => opt.type === "file")
+            .map((opt) => ({
+                id: opt.id,
+                path: (effectiveConfig as any)[opt.id],
+            })) || [];
+
     $: fileAssetsToLoad.forEach(({ id, path }) => {
         if (path) {
             loadAsset(id, path);
@@ -47,16 +58,18 @@
             }
         }
     });
-    
+
     async function loadAsset(id: string, path: string) {
         if (loadedAssets[id] && (loadedAssets[id] as any)._src === path) return;
-        
+
         try {
-            const fileBytes = await readFile(path, { baseDir: BaseDirectory.AppData });
+            const fileBytes = await readFile(path, {
+                baseDir: BaseDirectory.AppData,
+            });
             const blob = new Blob([fileBytes]);
             const objectUrl = URL.createObjectURL(blob);
-            
-            if (path.toLowerCase().endsWith('.gif')) {
+
+            if (path.toLowerCase().endsWith(".gif")) {
                 const gifData = await loadGif(objectUrl);
                 (gifData as any)._src = path;
                 loadedAssets[id] = gifData;
@@ -70,8 +83,8 @@
                 (img as any)._src = path;
                 loadedAssets[id] = img;
             }
-            loadedAssets = loadedAssets; 
-        } catch (e) { 
+            loadedAssets = loadedAssets;
+        } catch (e) {
             console.error("Failed to load asset:", path, e);
             if (loadedAssets[id]) {
                 delete loadedAssets[id];
@@ -84,17 +97,22 @@
         const values: Record<string, number> = {};
         const formatted: Record<string, string> = {};
         if (!activeTheme) return { values, formatted };
-        
+
         // Safety: Ensure slots exist
         if (activeTheme.slots) {
-            activeTheme.slots.forEach(slot => {
+            activeTheme.slots.forEach((slot) => {
                 const map = mapping[slot.id];
                 if (map) {
-                    const hw = hwList.find((h:any) => h.Id === map.hwId);
-                    const sensor = hw?.Sensors.find((s: any) => s.Id === map.sensorId);
+                    const hw = hwList.find((h: any) => h.Id === map.hwId);
+                    const sensor = hw?.Sensors.find(
+                        (s: any) => s.Id === map.sensorId,
+                    );
                     if (sensor) {
                         values[slot.id] = sensor.Value;
-                        formatted[slot.id] = formatUnit(sensor.Value, sensor.Type);
+                        formatted[slot.id] = formatUnit(
+                            sensor.Value,
+                            sensor.Type,
+                        );
                     }
                 }
             });
@@ -117,41 +135,62 @@
         const w = canvas.width;
         const h = canvas.height;
         const { values, formatted } = getData($rawHardware);
-        tick++; 
-        
+        tick++;
+
         drawAndSend(w, h, values, formatted, tick);
     }
 
-    async function drawAndSend(w: number, h: number, values: any, formatted: any, currentTick: number) {
+    async function drawAndSend(
+        w: number,
+        h: number,
+        values: any,
+        formatted: any,
+        currentTick: number,
+    ) {
         try {
-            if (activeTheme.renderFn) {
-                const renderResult = activeTheme.renderFn(ctx, w, h, values, formatted, effectiveConfig, currentTick, loadedAssets);
+            if (activeTheme?.renderFn) {
+                const renderResult = activeTheme.renderFn(
+                    ctx,
+                    w,
+                    h,
+                    values,
+                    formatted,
+                    effectiveConfig,
+                    currentTick,
+                    loadedAssets,
+                );
 
-                if (renderResult && typeof renderResult.then === 'function') {
+                if (renderResult && typeof renderResult.then === "function") {
                     await renderResult;
                 }
             }
-        } catch (e) { 
-            console.error("Render Error:", e); 
+        } catch (e) {
+            console.error("Render Error:", e);
         }
 
         if (!isSending && !isOffline) {
             isSending = true;
-            canvas.toBlob(async (blob) => {
-                if (blob) {
-                    try {
-                        const buffer = await blob.arrayBuffer();
-                        await invoke('send_frame', { jpegData: new Uint8Array(buffer) });
-                    } catch (e) { }
-                }
-                isSending = false;
-            }, 'image/jpeg', 0.90);
+            canvas.toBlob(
+                async (blob) => {
+                    if (blob) {
+                        try {
+                            const buffer = await blob.arrayBuffer();
+                            await invoke("send_frame", {
+                                jpegData: new Uint8Array(buffer),
+                            });
+                        } catch (e) {}
+                    }
+                    isSending = false;
+                },
+                "image/jpeg",
+                0.9,
+            );
         }
     }
 
     onMount(() => {
-        if(canvas) {
-            ctx = canvas.getContext('2d', { alpha: false })!;
+        if (canvas) {
+            ctx = canvas.getContext("2d", { alpha: false })!;
             frameId = requestAnimationFrame(loop);
         }
     });
@@ -159,29 +198,41 @@
     onDestroy(() => cancelAnimationFrame(frameId));
 </script>
 
-<div class="relative w-full h-full group select-none flex items-center justify-center">
-    <canvas 
-        bind:this={canvas} 
-        width={480} 
-        height={480} 
+<div
+    class="relative w-full h-full group select-none flex items-center justify-center"
+>
+    <canvas
+        bind:this={canvas}
+        width={480}
+        height={480}
         class="w-full h-full object-contain block"
         style="image-rendering: -webkit-optimize-contrast;"
     ></canvas>
-    
+
     {#if isOffline}
-        <div class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-500">
+        <div
+            class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-500"
+        >
             <div class="p-4 rounded-full bg-red-500/10 mb-4 animate-pulse">
                 <WifiOff size={40} class="text-red-500" />
             </div>
-            <h3 class="text-xl font-bold text-white tracking-widest">NO SIGNAL</h3>
-            <p class="text-xs text-zinc-500 mt-2 uppercase font-medium">Waiting for sensor bridge...</p>
+            <h3 class="text-xl font-bold text-white tracking-widest">
+                NO SIGNAL
+            </h3>
+            <p class="text-xs text-zinc-500 mt-2 uppercase font-medium">
+                Waiting for sensor bridge...
+            </p>
         </div>
     {/if}
 
     {#if !activeTheme && !isOffline}
-        <div class="absolute inset-0 z-40 flex flex-col items-center justify-center bg-zinc-900">
+        <div
+            class="absolute inset-0 z-40 flex flex-col items-center justify-center bg-zinc-900"
+        >
             <Loader2 size={32} class="text-indigo-500 animate-spin mb-2" />
-            <span class="text-xs text-zinc-500 uppercase font-widest">Loading Theme...</span>
+            <span class="text-xs text-zinc-500 uppercase font-widest"
+                >Loading Theme...</span
+            >
         </div>
     {/if}
 </div>

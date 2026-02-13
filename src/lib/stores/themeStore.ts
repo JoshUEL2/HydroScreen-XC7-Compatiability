@@ -16,6 +16,45 @@ const BUILT_INS: ThemeDefinition[] = [
     TerminalZero
 ];
 
+// Shared validation logic
+export function validateTheme(code: string, fileName?: string): ThemeDefinition {
+    // 1. Syntax Check
+    const createTheme = new Function(code);
+    const themeObj = createTheme();
+
+    if (!themeObj || typeof themeObj !== 'object') {
+        throw new Error("Script executed but did not return a valid object.");
+    }
+
+    // 2. Property Check
+    const required = ["id", "name", "author", "description"];
+    const missing = required.filter(field => !themeObj[field] || typeof themeObj[field] !== "string");
+
+    if (missing.length > 0) {
+        throw new Error(`Missing or invalid properties: ${missing.join(", ")}`);
+    }
+
+    if (typeof themeObj.renderFn !== "function") {
+        throw new Error("Missing 'renderFn' (must be a function).");
+    }
+
+    if (!Array.isArray(themeObj.slots)) {
+        throw new Error("'slots' must be an array.");
+    }
+
+    // 3. ID Safety Check (Simple regex)
+    if (!/^[a-z0-9-_]+$/i.test(themeObj.id)) {
+        throw new Error(`Invalid ID '${themeObj.id}'. Use only letters, numbers, hyphens, and underscores.`);
+    }
+
+    // Attach metadata
+    if (!themeObj.options) themeObj.options = [];
+    (themeObj as any)._isCustom = true;
+    if (fileName) (themeObj as any)._fileName = fileName;
+
+    return themeObj as ThemeDefinition;
+}
+
 function createThemeStore() {
     const { subscribe, set, update } = writable<ThemeDefinition[]>(BUILT_INS);
 
@@ -37,23 +76,18 @@ function createThemeStore() {
                     if (entry.isFile && entry.name.endsWith('.js')) {
                         try {
                             const code = await readTextFile(`themes/${entry.name}`, { baseDir: BaseDirectory.AppData });
-                            const createTheme = new Function(code);
-                            const themeObj = createTheme() as ThemeDefinition;
+                            try {
+                                const themeObj = validateTheme(code, entry.name);
 
-                            if (themeObj && themeObj.id) {
-                                if(!themeObj.options) themeObj.options = [];
-                                if(!themeObj.slots) themeObj.slots = [];
-
-                                (themeObj as any)._isCustom = true;
-                                (themeObj as any)._fileName = entry.name;
-                                
                                 if (BUILT_INS.find(t => t.id === themeObj.id)) {
                                     themeObj.id = `${themeObj.id}_custom`;
                                 }
                                 customThemes.push(themeObj);
+                            } catch (validationErr) {
+                                console.error(`Invalid theme ${entry.name}:`, validationErr);
                             }
                         } catch (err) {
-                            console.error(`Error loading theme ${entry.name}`, err);
+                            console.error(`Error reading theme file ${entry.name}`, err);
                         }
                     }
                 }

@@ -47,7 +47,7 @@ namespace SensorBridge
 
             logger.Info("Startup", "Running with Administrator privileges.");
 
-            // --- 1. UDP Heartbeat Watchdog ---
+            // 1. UDP Heartbeat Watchdog
             Task.Run(async () =>
             {
                 var localEp = new IPEndPoint(IPAddress.Loopback, BRIDGE_PORT);
@@ -66,7 +66,7 @@ namespace SensorBridge
                 }
             });
 
-            // Suicide timer
+            // Self-termination watchdog.
             Task.Run(async () =>
             {
                 await Task.Delay(10000);
@@ -82,7 +82,7 @@ namespace SensorBridge
 
             Computer? computer = null;
 
-            // Try to load the driver (computer.Open)
+            // Attempt to load the driver.
             try
             {
                 computer = new Computer
@@ -107,10 +107,10 @@ namespace SensorBridge
                 return;
             }
 
-            // Initialize Corsair Devices
+            // Initialize Corsair Devices.
             InitializeCorsairDevices();
 
-            // --- 2. Main Loop (UDP Sender) ---
+            // 2. Main Loop (UDP Sender)
             using (var sender = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0)))
             {
                 var endPoint = new IPEndPoint(IPAddress.Loopback, APP_PORT);
@@ -125,7 +125,7 @@ namespace SensorBridge
                         {
                             foreach (var hardware in computer.Hardware) hardware.Update();
                         
-                            // 1. Get LHM Data
+                            // 1. Get LHM Data.
                             hardwareList.AddRange(computer.Hardware.Select(h => new JsonHardware
                             {
                                 Id = h.Identifier.ToString(),
@@ -141,7 +141,7 @@ namespace SensorBridge
                             }));
                         }
 
-                        // 2. Refresh & Get Corsair Data
+                        // 2. Refresh & Get Corsair Data.
                         foreach (var device in corsairDevices)
                             {
                                 try

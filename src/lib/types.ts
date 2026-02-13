@@ -39,7 +39,7 @@ export type RenderFunction = (
     config: Record<string, any>,
     tick: number,
     assets: Record<string, any>
-) => void;
+) => void | Promise<void>;
 
 export interface ThemeDefinition {
     id: string;

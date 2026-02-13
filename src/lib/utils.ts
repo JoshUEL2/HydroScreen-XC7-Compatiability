@@ -37,3 +37,22 @@ export function fitText(
         if (ctx.measureText(text).width <= maxWidth) break;
     }
 }
+
+export function getDefaultRange(type: string): { min: number, max: number } {
+    let max = 100;
+    switch (type) {
+        case "Fan":
+            max = 2500;
+            break;
+        case "Flow":
+            max = 200;
+            break;
+        case "Clock":
+            max = 6000;
+            break;
+        default:
+            max = 100;
+            break;
+    }
+    return { min: 0, max };
+}
