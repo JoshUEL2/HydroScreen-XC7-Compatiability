@@ -68,7 +68,7 @@ fn main() {
             let _ = app.get_webview_window("main").expect("no main window").set_focus();
         }))
         .manage(ImageChannel { tx: Mutex::new(tx) })
-        .invoke_handler(tauri::generate_handler![send_frame, get_system_fonts])
+        .invoke_handler(tauri::generate_handler![send_frame, get_system_fonts, sidecar_handler::retry_sidecar])
         .setup(move |app| {
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let show_i = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;

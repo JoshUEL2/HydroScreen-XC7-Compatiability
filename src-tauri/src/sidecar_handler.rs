@@ -1,4 +1,4 @@
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use log::{info, error, debug, warn};
 use std::process::Command;
 use std::time::Duration;
@@ -7,11 +7,37 @@ use std::thread;
 use std::env;
 use std::path::PathBuf;
 use std::os::windows::process::CommandExt;
+use std::sync::{Arc};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 // Windows constant to hide the console window created by PowerShell
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
+lazy_static::lazy_static! {
+    static ref SPAWN_THREAD_RUNNING: AtomicBool = AtomicBool::new(false);
+    static ref SHOULD_RETRY: Arc<AtomicBool> = Arc::new(AtomicBool::new(true));
+}
+
+#[tauri::command]
+pub fn retry_sidecar(app: AppHandle, debug_mode: bool) {
+    if SPAWN_THREAD_RUNNING.load(Ordering::SeqCst) {
+        // If already running, just signal to retry
+        SHOULD_RETRY.store(true, Ordering::SeqCst);
+        info!("Retry signal sent to existing spawn thread.");
+    } else {
+        // If not running, start it
+        info!("Restarting spawn thread...");
+        spawn_sensor_bridge(app, debug_mode);
+    }
+}
+
 pub fn spawn_sensor_bridge(app: AppHandle, debug_mode: bool) {
+    // Prevent multiple spawn threads
+    if SPAWN_THREAD_RUNNING.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {
+        warn!("Spawn thread already running.");
+        return;
+    }
+
     let binary_name = "lhm-bridge.exe";
     let suffixed_binary_name = "lhm-bridge-x86_64-pc-windows-msvc.exe";
     let current_exe = env::current_exe().unwrap_or_default();
@@ -57,8 +83,21 @@ pub fn spawn_sensor_bridge(app: AppHandle, debug_mode: bool) {
 
     info!("Sidecar path resolved: {} (Name: {})", bridge_path, final_binary_name);
 
+    let app_for_thread = app.clone();
+    
+    // Spawn Thread
     thread::spawn(move || {
+        let mut consecutive_failures = 0;
+        SHOULD_RETRY.store(true, Ordering::SeqCst); // Ensure we try at least once
+
         loop {
+            // Check if we should even be trying
+            if !SHOULD_RETRY.load(Ordering::SeqCst) {
+                 thread::sleep(Duration::from_secs(2));
+                 continue;
+            }
+
+            // First check if already running
             let output = Command::new("tasklist")
                 .args(&["/FI", &format!("IMAGENAME eq {}", final_binary_name), "/NH"])
                 .creation_flags(CREATE_NO_WINDOW)
@@ -69,35 +108,81 @@ pub fn spawn_sensor_bridge(app: AppHandle, debug_mode: bool) {
                 Err(_) => false,
             };
 
-            if !is_running {
-                let debug_flag = if debug_mode { " --debug" } else { "" };
-                
-                info!("Spawning sidecar: {} {}", bridge_path, debug_flag);
-
-                let ps_command = if debug_mode {
-                    format!("Start-Process -FilePath '{}' -ArgumentList '--debug' -Verb RunAs -WindowStyle Hidden", bridge_path.replace("'", "''"))
-                } else {
-                    format!("Start-Process -FilePath '{}' -Verb RunAs -WindowStyle Hidden", bridge_path.replace("'", "''"))
-                };
-
-                let _ = Command::new("powershell")
-                    .args(&["-NoProfile", "-WindowStyle", "Hidden", "-Command", &ps_command])
-                    .creation_flags(CREATE_NO_WINDOW)
-                    .spawn();
-                
+            if is_running {
+                // If running, reset state
+                consecutive_failures = 0;
+                SHOULD_RETRY.store(true, Ordering::SeqCst); 
                 thread::sleep(Duration::from_secs(5));
+                continue;
             }
 
-            thread::sleep(Duration::from_secs(5));
+            // Attempt spawn
+            let debug_flag = if debug_mode { " --debug" } else { "" };
+            info!("Spawning sidecar: {} {}", bridge_path, debug_flag);
+
+            // PREPARE VARIABLES FOR FORMAT MACRO
+            let working_dir = final_path.parent().unwrap_or(&final_path).to_string_lossy().replace("'", "''");
+            let bridge_path_escaped = bridge_path.replace("'", "''");
+
+            let ps_script = if debug_mode {
+                format!(
+                    "try {{ Start-Process -FilePath '{}' -WorkingDirectory '{}' -ArgumentList '--debug' -Verb RunAs -WindowStyle Hidden -ErrorAction Stop; exit 0 }} catch {{ exit 1 }}",
+                    bridge_path_escaped, working_dir
+                )
+            } else {
+                format!(
+                    "try {{ Start-Process -FilePath '{}' -WorkingDirectory '{}' -Verb RunAs -WindowStyle Hidden -ErrorAction Stop; exit 0 }} catch {{ exit 1 }}",
+                    bridge_path_escaped, working_dir
+                )
+            };
+
+            let status = Command::new("powershell")
+                .args(&["-NoProfile", "-WindowStyle", "Hidden", "-Command", &ps_script])
+                .creation_flags(CREATE_NO_WINDOW)
+                .status();
+
+            match status {
+                Ok(exit_status) if exit_status.success() => {
+                    info!("Sidecar spawn command succeeded.");
+                    consecutive_failures = 0;
+                    thread::sleep(Duration::from_secs(5));
+                }
+                Ok(exit_status) => {
+                    warn!("Sidecar spawn failed or cancelled (Exit Code: {:?})", exit_status.code());
+                    consecutive_failures += 1;
+                    
+                    // IF UAC DENIED (which triggers exit code 1), we STOP auto-retry and ask user.
+                    error!("UAC/Spawn failed. Stopping auto-retry and notifying UI.");
+                    SHOULD_RETRY.store(false, Ordering::SeqCst);
+                    let _ = app_for_thread.emit("sidecar-error", "UAC Denied or Failed to start");
+                    
+                    // Bring window to front if minimized/hidden
+                    if let Some(window) = app_for_thread.get_webview_window("main") {
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                    }
+                }
+                Err(e) => {
+                    error!("Failed to execute spawn command: {}", e);
+                    consecutive_failures += 1;
+                }
+            }
+
+            // Exponential backoff
+            if consecutive_failures > 0 && SHOULD_RETRY.load(Ordering::SeqCst) {
+                let backoff_secs = std::cmp::min(300, 5 * (1 << (consecutive_failures - 1)));
+                thread::sleep(Duration::from_secs(backoff_secs));
+            }
         }
     });
-
+    
     let app_clone = app.clone();
     thread::spawn(move || {
+        // This fails if address in use, so it naturally prevents duplicates if we ignore the error
         let socket = match UdpSocket::bind("127.0.0.1:14242") {
             Ok(s) => s,
             Err(e) => {
-                error!("UDP Bind failed: {}", e);
+                debug!("UDP Bind failed (probably already running): {}", e);
                 return;
             }
         };
@@ -115,7 +200,10 @@ pub fn spawn_sensor_bridge(app: AppHandle, debug_mode: bool) {
     });
 
     thread::spawn(move || {
-        let socket = UdpSocket::bind("127.0.0.1:0").unwrap();
+        let socket = match UdpSocket::bind("127.0.0.1:0") {
+             Ok(s) => s,
+             Err(_) => return,
+        };
         loop {
             let _ = socket.send_to(b"ping", "127.0.0.1:14243");
             thread::sleep(Duration::from_secs(3));

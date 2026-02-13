@@ -16,6 +16,7 @@ using CorsairLink.Devices.CommanderCore;
 using CorsairLink.Devices.HydroPlatinum;
 using CorsairLink.Hid;
 using CorsairLink.Synchronization;
+using System.Security.Principal;
 
 namespace SensorBridge
 {
@@ -30,10 +31,21 @@ namespace SensorBridge
 
         static void Main(string[] args)
         {
+            System.IO.Directory.SetCurrentDirectory(System.AppDomain.CurrentDomain.BaseDirectory);
+
             Console.OutputEncoding = Encoding.UTF8;
             bool debugMode = args.Any(arg => arg.Equals("--debug", StringComparison.OrdinalIgnoreCase) || arg.Equals("-d", StringComparison.OrdinalIgnoreCase));
             logger = new FileLogger(debugMode);
             guardManager = new CorsairDevicesGuardManager();
+
+            if (!IsAdministrator())
+            {
+                logger.Error("Startup", "NOT running as Administrator. Exiting immediately.");
+                SendErrorAndExit("Administrator Access Required", 5); // Access Denied
+                return;
+            }
+
+            logger.Info("Startup", "Running with Administrator privileges.");
 
             // --- 1. UDP Heartbeat Watchdog ---
             Task.Run(async () =>
@@ -43,7 +55,7 @@ namespace SensorBridge
                 {
                     while (true)
                     {
-                        try 
+                        try
                         {
                             var result = await client.ReceiveAsync();
                             string msg = Encoding.UTF8.GetString(result.Buffer);
@@ -57,7 +69,7 @@ namespace SensorBridge
             // Suicide timer
             Task.Run(async () =>
             {
-                await Task.Delay(10000); 
+                await Task.Delay(10000);
                 while (true)
                 {
                     if ((DateTime.Now - lastHeartbeat).TotalSeconds > 5)
@@ -68,17 +80,32 @@ namespace SensorBridge
                 }
             });
 
-            var computer = new Computer
+            Computer? computer = null;
+
+            // Try to load the driver (computer.Open)
+            try
             {
-                IsCpuEnabled = true,
-                IsGpuEnabled = true,
-                IsMotherboardEnabled = true,
-                IsStorageEnabled = false,
-                IsControllerEnabled = true,
-                IsMemoryEnabled = true,
-                IsPsuEnabled = true
-            };
-            try { computer.Open(); } catch { }
+                computer = new Computer
+                {
+                    IsCpuEnabled = true,
+                    IsGpuEnabled = true,
+                    IsMotherboardEnabled = true,
+                    IsStorageEnabled = false,
+                    IsControllerEnabled = true,
+                    IsMemoryEnabled = true,
+                    IsPsuEnabled = true
+                };
+
+                logger.Info("Startup", "Attempting to load LibreHardwareMonitor driver...");
+                computer.Open();
+                logger.Info("Startup", "LibreHardwareMonitor driver loaded successfully.");
+            }
+            catch (Exception ex)
+            {
+                logger.Error("Startup", "Failed to load LibreHardwareMonitor driver!", ex);
+                SendErrorAndExit($"Driver Load Failed: {ex.Message}", 2); // File Not Found / Driver Error
+                return;
+            }
 
             // Initialize Corsair Devices
             InitializeCorsairDevices();
@@ -92,84 +119,90 @@ namespace SensorBridge
                 {
                     try
                     {
-                        foreach (var hardware in computer.Hardware) hardware.Update();
+                        var hardwareList = new List<JsonHardware>();
 
-                        // 1. Get LHM Data
-                        var hardwareList = computer.Hardware.Select(h => new JsonHardware
+                        if (computer != null)
                         {
-                            Id = h.Identifier.ToString(),
-                            Name = h.Name,
-                            Type = h.HardwareType.ToString().Replace("Cpu", "CPU").Replace("GpuNvidia", "GPU").Replace("GpuAmd", "GPU"),
-                            Sensors = h.Sensors.Select(s => new JsonSensor
+                            foreach (var hardware in computer.Hardware) hardware.Update();
+                        
+                            // 1. Get LHM Data
+                            hardwareList.AddRange(computer.Hardware.Select(h => new JsonHardware
                             {
-                                Id = s.Identifier.ToString(),
-                                Name = s.Name,
-                                Type = s.SensorType.ToString(),
-                                Value = s.Value ?? 0
-                            }).ToList()
-                        }).ToList();
+                                Id = h.Identifier.ToString(),
+                                Name = h.Name,
+                                Type = h.HardwareType.ToString().Replace("Cpu", "CPU").Replace("GpuNvidia", "GPU").Replace("GpuAmd", "GPU"),
+                                Sensors = h.Sensors.Select(s => new JsonSensor
+                                {
+                                    Id = s.Identifier.ToString(),
+                                    Name = s.Name,
+                                    Type = s.SensorType.ToString(),
+                                    Value = s.Value ?? 0
+                                }).ToList()
+                            }));
+                        }
 
                         // 2. Refresh & Get Corsair Data
                         foreach (var device in corsairDevices)
-                        {
-                            try
                             {
-                                device.Refresh(); 
-                                
-                                var sensors = new List<JsonSensor>();
-                                
-                                logger.Debug("MainLoop", $"{device.Name}: Found {device.TemperatureSensors.Count} temp sensors, {device.SpeedSensors.Count} speed sensors");
-
-                                foreach(var temp in device.TemperatureSensors)
+                                try
                                 {
-                                    if (temp.TemperatureCelsius.HasValue)
+                                    device.Refresh(); 
+                                    
+                                    var sensors = new List<JsonSensor>();
+                                    
+                                    logger.Debug("MainLoop", $"{device.Name}: Found {device.TemperatureSensors.Count} temp sensors, {device.SpeedSensors.Count} speed sensors");
+
+                                    foreach(var temp in device.TemperatureSensors)
                                     {
-                                        logger.Debug("MainLoop", $"Adding Temp: {temp.Name} = {temp.TemperatureCelsius.Value}");
-                                        sensors.Add(new JsonSensor 
-                                        { 
-                                            Id = $"{device.UniqueId}-temp-{temp.Channel}",
-                                            Name = temp.Name, 
-                                            Type = "Temperature", 
-                                            Value = temp.TemperatureCelsius.Value 
+                                        if (temp.TemperatureCelsius.HasValue)
+                                        {
+                                            logger.Debug("MainLoop", $"Adding Temp: {temp.Name} = {temp.TemperatureCelsius.Value}");
+                                            sensors.Add(new JsonSensor 
+                                            { 
+                                                Id = $"{device.UniqueId}-temp-{temp.Channel}",
+                                                Name = temp.Name, 
+                                                Type = "Temperature", 
+                                                Value = temp.TemperatureCelsius.Value 
+                                            });
+                                        }
+                                    }
+                                    
+                                    foreach(var fan in device.SpeedSensors)
+                                    {
+                                        if (fan.Rpm.HasValue)
+                                        {
+                                            logger.Debug("MainLoop", $"Adding Fan: {fan.Name} = {fan.Rpm.Value}");
+                                            sensors.Add(new JsonSensor 
+                                            { 
+                                                Id = $"{device.UniqueId}-fan-{fan.Channel}",
+                                                Name = fan.Name, 
+                                                Type = "Fan", 
+                                                Value = fan.Rpm.Value 
+                                            });
+                                        }
+                                        else
+                                        {
+                                            logger.Debug("MainLoop", $"Skipping Fan {fan.Name} (No Value)");
+                                        }
+                                    }
+
+                                    if (sensors.Count > 0)
+                                    {
+                                        hardwareList.Add(new JsonHardware
+                                        {
+                                            Id = device.UniqueId,
+                                            Name = device.Name,
+                                            Type = "Cooler",
+                                            Sensors = sensors
                                         });
                                     }
                                 }
-                                
-                                foreach(var fan in device.SpeedSensors)
+                                catch (Exception ex)
                                 {
-                                    if (fan.Rpm.HasValue)
-                                    {
-                                        logger.Debug("MainLoop", $"Adding Fan: {fan.Name} = {fan.Rpm.Value}");
-                                        sensors.Add(new JsonSensor 
-                                        { 
-                                            Id = $"{device.UniqueId}-fan-{fan.Channel}",
-                                            Name = fan.Name, 
-                                            Type = "Fan", 
-                                            Value = fan.Rpm.Value 
-                                        });
-                                    }
-                                    else
-                                    {
-                                        logger.Debug("MainLoop", $"Skipping Fan {fan.Name} (No Value)");
-                                    }
+                                    logger.Error("MainLoop", $"Error refreshing {device.Name}", ex);
                                 }
+                            }
 
-                                if (sensors.Count > 0)
-                                {
-                                    hardwareList.Add(new JsonHardware
-                                    {
-                                        Id = device.UniqueId,
-                                        Name = device.Name,
-                                        Type = "Cooler",
-                                        Sensors = sensors
-                                    });
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                logger.Error("MainLoop", $"Error refreshing {device.Name}", ex);
-                            }
-                        }
 
                         string json = JsonConvert.SerializeObject(hardwareList, Formatting.None);
                         byte[] bytes = Encoding.UTF8.GetBytes(json);
@@ -182,6 +215,32 @@ namespace SensorBridge
 
                     Thread.Sleep(1000);
                 }
+            }
+        }
+
+        static void SendErrorAndExit(string errorMsg, int exitCode)
+        {
+            try
+            {
+                using (var sender = new UdpClient())
+                {
+                    string json = $"{{\"error\": \"{errorMsg}\"}}";
+                    byte[] bytes = Encoding.UTF8.GetBytes(json);
+                    sender.Send(bytes, bytes.Length, new IPEndPoint(IPAddress.Loopback, APP_PORT));
+                }
+                Thread.Sleep(500); // Give it a moment to send
+            }
+            catch { }
+            
+            Environment.Exit(exitCode);
+        }
+
+        static bool IsAdministrator()
+        {
+            using (WindowsIdentity identity = WindowsIdentity.GetCurrent())
+            {
+                WindowsPrincipal principal = new WindowsPrincipal(identity);
+                return principal.IsInRole(WindowsBuiltInRole.Administrator);
             }
         }
 
