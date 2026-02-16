@@ -94,6 +94,7 @@
         title="Reset Theme?"
         message="This will revert all colors, fonts, and files for this theme to their defaults. Data mappings will be kept."
         confirmText="Reset All"
+        variant="info"
         on:cancel={() => (showResetModal = false)}
         on:confirm={confirmResetAll}
     />
@@ -162,7 +163,7 @@
         <div
             class="flex-1 flex items-center justify-center p-4 md:p-8 min-h-0 relative overflow-hidden"
             role="application"
-            on:wheel={handleWheel}
+            on:wheel|nonpassive={handleWheel}
             on:mousedown={handleMouseDown}
             on:mousemove={handleMouseMove}
             style:cursor={supportsPanZoom

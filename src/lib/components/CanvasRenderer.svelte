@@ -2,7 +2,7 @@
     import { onMount, onDestroy } from "svelte";
     import { invoke } from "@tauri-apps/api/core";
     import { readFile, BaseDirectory } from "@tauri-apps/plugin-fs";
-    import { rawHardware, lastUpdate } from "$lib/stores/sensors";
+    import { rawHardware, lastUpdate, CONNECTION_TIMEOUT, isSensorless } from "$lib/stores/sensors";
     import { settings } from "$lib/stores/settings";
     import { themeRegistry } from "$lib/stores/themeStore";
     import { formatUnit } from "$lib/utils";
@@ -18,10 +18,15 @@
     let lastRenderTime = 0;
     let isOffline = false;
     let loadedAssets: Record<string, HTMLImageElement | GifData> = {};
+    let activeObjectUrls: Record<string, string> = {};
+    let assetsLoading: Set<string> = new Set();
+    let renderErrorCount = 0;
 
     const TARGET_FPS = 30;
     const FRAME_INTERVAL = 1000 / TARGET_FPS;
-    const OFFLINE_TIMEOUT = 2500;
+    const OFFLINE_TIMEOUT = CONNECTION_TIMEOUT;
+    const MAX_RENDER_ERRORS = 60; // Disable broken themes after ~2 seconds of consecutive errors
+    const TICK_MODULO = 1_000_000; // Reset tick periodically to avoid overflow
 
     $: activeTheme = $themeRegistry.find(
         (t) => t.id === $settings.activeThemeId,
@@ -53,6 +58,11 @@
             loadAsset(id, path);
         } else {
             if (loadedAssets[id]) {
+                // Revoke old object URL when clearing
+                if (activeObjectUrls[id]) {
+                    URL.revokeObjectURL(activeObjectUrls[id]);
+                    delete activeObjectUrls[id];
+                }
                 delete loadedAssets[id];
                 loadedAssets = loadedAssets;
             }
@@ -61,13 +71,22 @@
 
     async function loadAsset(id: string, path: string) {
         if (loadedAssets[id] && (loadedAssets[id] as any)._src === path) return;
+        if (assetsLoading.has(`${id}:${path}`)) return;
+        assetsLoading.add(`${id}:${path}`);
 
         try {
+            // Revoke previous object URL for this asset
+            if (activeObjectUrls[id]) {
+                URL.revokeObjectURL(activeObjectUrls[id]);
+                delete activeObjectUrls[id];
+            }
+
             const fileBytes = await readFile(path, {
                 baseDir: BaseDirectory.AppData,
             });
             const blob = new Blob([fileBytes]);
             const objectUrl = URL.createObjectURL(blob);
+            activeObjectUrls[id] = objectUrl;
 
             if (path.toLowerCase().endsWith(".gif")) {
                 const gifData = await loadGif(objectUrl);
@@ -86,10 +105,16 @@
             loadedAssets = loadedAssets;
         } catch (e) {
             console.error("Failed to load asset:", path, e);
+            if (activeObjectUrls[id]) {
+                URL.revokeObjectURL(activeObjectUrls[id]);
+                delete activeObjectUrls[id];
+            }
             if (loadedAssets[id]) {
                 delete loadedAssets[id];
                 loadedAssets = loadedAssets;
             }
+        } finally {
+            assetsLoading.delete(`${id}:${path}`);
         }
     }
 
@@ -128,14 +153,14 @@
         lastRenderTime = now - (elapsed % FRAME_INTERVAL);
 
         const timeSinceUpdate = Date.now() - $lastUpdate;
-        isOffline = timeSinceUpdate > OFFLINE_TIMEOUT;
+        isOffline = !$isSensorless && timeSinceUpdate > OFFLINE_TIMEOUT;
 
         if (!ctx || !canvas || !activeTheme) return;
 
         const w = canvas.width;
         const h = canvas.height;
         const { values, formatted } = getData($rawHardware);
-        tick++;
+        tick = (tick + 1) % TICK_MODULO;
 
         drawAndSend(w, h, values, formatted, tick);
     }
@@ -149,23 +174,44 @@
     ) {
         try {
             if (activeTheme?.renderFn) {
-                const renderResult = activeTheme.renderFn(
-                    ctx,
-                    w,
-                    h,
-                    values,
-                    formatted,
-                    effectiveConfig,
-                    currentTick,
-                    loadedAssets,
-                );
+                if (renderErrorCount >= MAX_RENDER_ERRORS) {
+                    // Theme is broken — draw error message instead of calling renderFn
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(0, 0, w, h);
+                    ctx.fillStyle = '#ef4444';
+                    ctx.font = 'bold 20px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('Theme Error', w / 2, h / 2 - 15);
+                    ctx.fillStyle = '#71717a';
+                    ctx.font = '14px Arial';
+                    ctx.fillText('Switch themes to recover', w / 2, h / 2 + 15);
+                } else {
+                    const renderResult = activeTheme.renderFn(
+                        ctx,
+                        w,
+                        h,
+                        values,
+                        formatted,
+                        effectiveConfig,
+                        currentTick,
+                        loadedAssets,
+                    );
 
-                if (renderResult && typeof renderResult.then === "function") {
-                    await renderResult;
+                    if (renderResult && typeof renderResult.then === "function") {
+                        await renderResult;
+                    }
+                    // Reset error count on successful render
+                    renderErrorCount = 0;
                 }
             }
         } catch (e) {
-            console.error("Render Error:", e);
+            renderErrorCount++;
+            if (renderErrorCount <= 3) {
+                console.error("Render Error:", e);
+            } else if (renderErrorCount === MAX_RENDER_ERRORS) {
+                console.error(`Render Error: Theme disabled after ${MAX_RENDER_ERRORS} consecutive failures`);
+            }
         }
 
         if (!isSending && !isOffline) {
@@ -188,6 +234,11 @@
         }
     }
 
+    // Reset render error count when theme changes
+    $: if (activeTheme) {
+        renderErrorCount = 0;
+    }
+
     onMount(() => {
         if (canvas) {
             ctx = canvas.getContext("2d", { alpha: false })!;
@@ -195,7 +246,14 @@
         }
     });
 
-    onDestroy(() => cancelAnimationFrame(frameId));
+    onDestroy(() => {
+        cancelAnimationFrame(frameId);
+        // Revoke all tracked object URLs
+        for (const url of Object.values(activeObjectUrls)) {
+            URL.revokeObjectURL(url);
+        }
+        activeObjectUrls = {};
+    });
 </script>
 
 <div

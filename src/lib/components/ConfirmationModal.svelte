@@ -6,6 +6,7 @@
     export let title = "Confirm Action";
     export let message = "Are you sure you want to proceed?";
     export let confirmText = "Delete";
+    export let variant: 'danger' | 'info' = 'danger';
 
     const dispatch = createEventDispatcher();
 
@@ -30,13 +31,14 @@
     transition:fade={{ duration: 150 }}
     on:click|self={() => dispatch("cancel")}
     on:keydown={handleKeydown}
-    role="button"
-    tabindex="0"
+    role="presentation"
 >
     <div
         class="glass-modal w-full max-w-sm p-6 text-center"
         transition:scale={{ duration: 150, start: 0.95 }}
-        role="dialog"
+        role="alertdialog"
+        aria-modal="true"
+        aria-label={title}
     >
         <div
             class="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500"
@@ -58,7 +60,9 @@
             </button>
             <button
                 on:click={() => dispatch("confirm")}
-                class="px-2 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold transition-colors shadow-lg shadow-red-900/20"
+                class="px-2 py-2 rounded-lg text-white font-bold transition-colors shadow-lg {variant === 'danger'
+                    ? 'bg-red-600 hover:bg-red-500 shadow-red-900/20'
+                    : 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-900/20'}"
             >
                 {confirmText}
             </button>

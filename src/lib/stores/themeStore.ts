@@ -16,6 +16,11 @@ const BUILT_INS: ThemeDefinition[] = [
     TerminalZero
 ];
 
+// SECURITY NOTE: Custom themes are loaded via `new Function(code)` which executes
+// arbitrary JavaScript. This is intentional to allow user-created themes, but means
+// theme files from untrusted sources could be malicious. Only load themes the user
+// explicitly imports.
+
 // Shared validation logic
 export function validateTheme(code: string, fileName?: string): ThemeDefinition {
     // 1. Syntax Check
@@ -71,6 +76,7 @@ function createThemeStore() {
 
                 const entries = await readDir('themes', { baseDir: BaseDirectory.AppData });
                 const customThemes: ThemeDefinition[] = [];
+                const seenIds = new Set<string>();
 
                 for (const entry of entries) {
                     if (entry.isFile && entry.name.endsWith('.js')) {
@@ -79,9 +85,19 @@ function createThemeStore() {
                             try {
                                 const themeObj = validateTheme(code, entry.name);
 
+                                // Reject themes whose ID collides with a built-in
                                 if (BUILT_INS.find(t => t.id === themeObj.id)) {
-                                    themeObj.id = `${themeObj.id}_custom`;
+                                    console.warn(`Custom theme "${entry.name}" has ID "${themeObj.id}" which conflicts with a built-in theme — skipping`);
+                                    continue;
                                 }
+
+                                // Deduplicate: skip if another custom theme already claimed this ID
+                                if (seenIds.has(themeObj.id)) {
+                                    console.warn(`Duplicate custom theme ID "${themeObj.id}" in "${entry.name}" — skipping`);
+                                    continue;
+                                }
+
+                                seenIds.add(themeObj.id);
                                 customThemes.push(themeObj);
                             } catch (validationErr) {
                                 console.error(`Invalid theme ${entry.name}:`, validationErr);

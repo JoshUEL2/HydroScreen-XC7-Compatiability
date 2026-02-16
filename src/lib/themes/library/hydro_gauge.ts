@@ -1,7 +1,9 @@
-import type { ThemeDefinition } from '../types';
+import type { ThemeDefinition } from '$lib/types';
 import { fitText } from '../../utils';
 
+// Animation state — reset via tick (tick resets on theme switch via TICK_MODULO)
 let currentVal = 0;
+let lastSeenTick = -1;
 
 export const theme: ThemeDefinition = {
     id: 'hydro-gauge',
@@ -22,6 +24,11 @@ export const theme: ThemeDefinition = {
         { id: 'fontFamily', label: 'Font Family', type: 'font', default: 'Arial' }
     ],
     renderFn: (ctx, w, h, values, formatted, config, tick) => {
+        // Reset animation state if tick jumped backwards (theme was re-activated)
+        if (tick < lastSeenTick) {
+            currentVal = 0;
+        }
+        lastSeenTick = tick;
         const targetVal = values['main'] || 0;
         const mainStr = formatted['main'] || '--';
         const subStr = formatted['sub'] || '';

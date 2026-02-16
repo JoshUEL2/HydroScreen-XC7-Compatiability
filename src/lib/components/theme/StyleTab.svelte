@@ -347,7 +347,7 @@
                                                 value={config[
                                                     `${slot.id}Min`
                                                 ] ?? 0}
-                                                on:input={(e) =>
+                                                on:change={(e) =>
                                                     updateConfig(
                                                         `${slot.id}Min`,
                                                         parseFloat(
@@ -369,7 +369,7 @@
                                                 value={config[
                                                     `${slot.id}Max`
                                                 ] ?? 100}
-                                                on:input={(e) =>
+                                                on:change={(e) =>
                                                     updateConfig(
                                                         `${slot.id}Max`,
                                                         parseFloat(
@@ -472,8 +472,27 @@
                                             id={opt.id}
                                             value={config[opt.id] ??
                                                 opt.default}
-                                            class="w-full h-9 input-standard px-3 font-mono text-zinc-400 focus:border-white/20 uppercase"
-                                            readonly
+                                            on:input={(e) => {
+                                                const val = e.currentTarget.value.trim();
+                                                // Accept valid hex colors
+                                                if (/^#[0-9a-fA-F]{6}$/.test(val)) {
+                                                    updateConfig(opt.id, val);
+                                                }
+                                            }}
+                                            on:blur={(e) => {
+                                                let val = e.currentTarget.value.trim();
+                                                // Auto-prepend # if missing
+                                                if (/^[0-9a-fA-F]{6}$/.test(val)) val = '#' + val;
+                                                if (/^#[0-9a-fA-F]{6}$/.test(val)) {
+                                                    updateConfig(opt.id, val);
+                                                } else {
+                                                    // Revert to current value on invalid input
+                                                    e.currentTarget.value = config[opt.id] ?? opt.default;
+                                                }
+                                            }}
+                                            class="w-full h-9 input-standard px-3 font-mono text-zinc-300 focus:border-white/20 uppercase"
+                                            maxlength="7"
+                                            placeholder="#000000"
                                         />
                                     </div>
                                 </div>

@@ -3,7 +3,7 @@ import { parseGIF, decompressFrames } from 'gifuct-js';
 export interface GifData {
     frames: {
         delay: number;
-        image: ImageData;
+        bitmap: ImageBitmap;
     }[];
     totalTime: number;
     width: number;
@@ -50,7 +50,7 @@ export async function loadGif(url: string): Promise<GifData> {
 
     if (!compCtx || !outCtx) throw new Error("Canvas init failed");
 
-    const processedFrames: { delay: number; image: ImageData }[] = [];
+    const processedFrames: { delay: number; bitmap: ImageBitmap }[] = [];
     let totalTime = 0;
     let backupFrameData: ImageData | null = null;
 
@@ -64,23 +64,22 @@ export async function loadGif(url: string): Promise<GifData> {
         }
 
         // Create an ImageBitmap from the patch data.
-        // This ensures correct handling of raw pixel arrays for drawing.
-        // Note: Cast the patch to Uint8ClampedArray to satisfy stricter TS types for ImageData
         const patchData = new Uint8ClampedArray(frame.patch);
         const patchBitmap = await createImageBitmap(new ImageData(patchData, dims.width, dims.height));
 
         // Draw the patch bitmap onto the main composition canvas
         compCtx.drawImage(patchBitmap, dims.left, dims.top);
+        patchBitmap.close();
 
         // Snapshot the COMPOSITE frame and resize it
         outCtx.clearRect(0, 0, targetWidth, targetHeight);
         outCtx.drawImage(compCanvas, 0, 0, targetWidth, targetHeight);
 
-        // Store the final, resized bitmap
-        const finalImageData = outCtx.getImageData(0, 0, targetWidth, targetHeight);
+        // Pre-render to ImageBitmap for efficient per-frame drawing later
+        const frameBitmap = await createImageBitmap(outCanvas);
 
         const safeDelay = Math.max(frame.delay, 30);
-        processedFrames.push({ delay: safeDelay, image: finalImageData });
+        processedFrames.push({ delay: safeDelay, bitmap: frameBitmap });
         totalTime += safeDelay;
 
         // Handle Disposal for NEXT frame

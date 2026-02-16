@@ -5,7 +5,7 @@
     import { Minus, Square, X, RefreshCw } from "lucide-svelte";
     import { get } from "svelte/store";
 
-    export let lhmStatus: "active" | "waiting";
+    export let lhmStatus: "active" | "waiting" | "sensorless";
 
     const appWindow = getCurrentWindow();
 
@@ -46,9 +46,13 @@
             <div
                 class="flex items-center gap-1.5 {lhmStatus === 'active'
                     ? 'text-emerald-400'
-                    : 'text-amber-500'}"
+                    : lhmStatus === 'sensorless'
+                        ? 'text-zinc-500'
+                        : 'text-amber-500'}"
             >
                 {#if lhmStatus === "active"}
+                    <div class="w-1.5 h-1.5 rounded-full bg-current"></div>
+                {:else if lhmStatus === "sensorless"}
                     <div class="w-1.5 h-1.5 rounded-full bg-current"></div>
                 {:else}
                     <RefreshCw size={10} class="animate-spin" />

@@ -32,7 +32,41 @@ const defaultSettings: AppSettings = {
     }
 };
 
-let saveTimer: any = null;
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+let cachedDiskStore: Awaited<ReturnType<typeof load>> | null = null;
+
+async function getDiskStore() {
+    if (!cachedDiskStore) {
+        cachedDiskStore = await load(STORE_PATH);
+    }
+    return cachedDiskStore;
+}
+
+async function migrateCustomThemes(val: AppSettings, diskStore: Awaited<ReturnType<typeof load>>) {
+    if (!val.customThemes || val.customThemes.length === 0) return;
+
+    try {
+        const hasDir = await exists('themes', { baseDir: BaseDirectory.AppData });
+        if (!hasDir) {
+            await mkdir('themes', { baseDir: BaseDirectory.AppData, recursive: true });
+        }
+
+        for (const code of val.customThemes) {
+            const idMatch = code.match(/id:\s*['"]([^'"]+)['"]/);
+            if (idMatch && idMatch[1]) {
+                const id = idMatch[1];
+                await writeTextFile(`themes/${id}.js`, code, { baseDir: BaseDirectory.AppData });
+            }
+        }
+
+        val.customThemes = [];
+        await diskStore.set('config', val);
+        await diskStore.save();
+        await refreshThemes();
+    } catch (migrationErr) {
+        console.error("Migration failed:", migrationErr);
+    }
+}
 
 function createSettingsStore() {
     const store = writable<AppSettings>(defaultSettings);
@@ -44,34 +78,11 @@ function createSettingsStore() {
             if (get(settingsReady)) return;
 
             try {
-                const diskStore = await load(STORE_PATH);
+                const diskStore = await getDiskStore();
                 const val = await diskStore.get<AppSettings>('config');
 
                 if (val) {
-                    if (val.customThemes && val.customThemes.length > 0) {
-                        try {
-                            const hasDir = await exists('themes', { baseDir: BaseDirectory.AppData });
-                            if (!hasDir) {
-                                await mkdir('themes', { baseDir: BaseDirectory.AppData, recursive: true });
-                            }
-
-                            for (const code of val.customThemes) {
-                                const idMatch = code.match(/id:\s*['"]([^'"]+)['"]/);
-                                if (idMatch && idMatch[1]) {
-                                    const id = idMatch[1];
-                                    await writeTextFile(`themes/${id}.js`, code, { baseDir: BaseDirectory.AppData });
-                                }
-                            }
-
-                            val.customThemes = [];
-                            await diskStore.set('config', val);
-                            await diskStore.save();
-                            await refreshThemes();
-
-                        } catch (migrationErr) {
-                            console.error("Migration failed:", migrationErr);
-                        }
-                    }
+                    await migrateCustomThemes(val, diskStore);
 
                     set({
                         ...defaultSettings,
@@ -90,14 +101,14 @@ function createSettingsStore() {
                 settingsReady.set(true);
             }
         },
-        setActiveTheme: async (id: string) => {
+        setActiveTheme: (id: string) => {
             update(s => {
                 const next = { ...s, activeThemeId: id };
                 triggerSave(next);
                 return next;
             });
         },
-        updateMapping: async (themeId: string, slotId: string, data: { hwId: string; sensorId: string; sensorType: string } | null) => {
+        updateMapping: (themeId: string, slotId: string, data: { hwId: string; sensorId: string; sensorType: string } | null) => {
             update(s => {
                 const next = { ...s };
                 if (!next.mappings[themeId]) next.mappings[themeId] = {};
@@ -106,7 +117,7 @@ function createSettingsStore() {
                 return next;
             });
         },
-        updateThemeConfig: async (themeId: string, optionId: string, value: any) => {
+        updateThemeConfig: (themeId: string, optionId: string, value: any) => {
             update(s => {
                 const next = { ...s };
                 if (!next.themeConfigs[themeId]) next.themeConfigs[themeId] = {};
@@ -115,7 +126,7 @@ function createSettingsStore() {
                 return next;
             });
         },
-        resetThemeConfig: async (themeId: string) => {
+        resetThemeConfig: (themeId: string) => {
             update(s => {
                 const next = { ...s };
                 next.themeConfigs[themeId] = {};
@@ -123,7 +134,7 @@ function createSettingsStore() {
                 return next;
             });
         },
-        toggleAppBehavior: async (key: 'minimizeToTray' | 'autoStart' | 'startMinimized') => {
+        toggleAppBehavior: (key: 'minimizeToTray' | 'autoStart' | 'startMinimized') => {
             update(s => {
                 const next = { ...s };
                 next.appBehavior[key] = !next.appBehavior[key];
@@ -138,14 +149,16 @@ function createSettingsStore() {
     };
 }
 
-async function triggerSave(val: AppSettings, delay = 0) {
+function triggerSave(val: AppSettings, delay = 0) {
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(async () => {
         try {
-            const diskStore = await load(STORE_PATH);
+            const diskStore = await getDiskStore();
             await diskStore.set('config', val);
             await diskStore.save();
-        } catch (e) { }
+        } catch (e) {
+            console.error("[Settings] Failed to save:", e);
+        }
     }, delay);
 }
 

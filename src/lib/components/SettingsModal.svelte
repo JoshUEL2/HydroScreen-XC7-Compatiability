@@ -3,10 +3,11 @@
     import { fade, scale } from "svelte/transition";
     import { settings } from "$lib/stores/settings";
     import { getVersion } from "@tauri-apps/api/app";
-    import { X, Power, ArrowDownToLine, Monitor, Import } from "lucide-svelte";
+    import { X, Power, ArrowDownToLine, Monitor, EyeOff } from "lucide-svelte";
 
     const dispatch = createEventDispatcher();
     let version = "";
+    let modalElement: HTMLDivElement;
 
     onMount(async () => {
         try {
@@ -15,6 +16,8 @@
             console.error("Failed to get version", e);
             version = "Unknown";
         }
+        // Focus the modal on mount for keyboard accessibility
+        modalElement?.focus();
     });
 
     function close() {
@@ -23,6 +26,22 @@
 
     function handleKeydown(e: KeyboardEvent) {
         if (e.key === "Escape") close();
+        // Focus trap: keep Tab within the modal
+        if (e.key === "Tab") {
+            const focusable = modalElement?.querySelectorAll<HTMLElement>(
+                'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+            );
+            if (!focusable || focusable.length === 0) return;
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (e.shiftKey && document.activeElement === first) {
+                e.preventDefault();
+                last.focus();
+            } else if (!e.shiftKey && document.activeElement === last) {
+                e.preventDefault();
+                first.focus();
+            }
+        }
     }
 </script>
 
@@ -32,8 +51,7 @@
     transition:fade={{ duration: 200 }}
     on:click|self={close}
     on:keydown={handleKeydown}
-    role="button"
-    tabindex="0"
+    role="presentation"
 >
     <!-- Modal Content -->
     <div
@@ -41,6 +59,9 @@
         transition:scale={{ duration: 200, start: 0.95 }}
         role="dialog"
         aria-modal="true"
+        aria-label="Application Settings"
+        tabindex="-1"
+        bind:this={modalElement}
     >
         <div
             class="p-6 border-b border-white/5 flex items-center justify-between bg-white/5"
@@ -79,6 +100,8 @@
                     </div>
                 </div>
                 <div
+                    role="switch"
+                    aria-checked={$settings.appBehavior.autoStart}
                     class="w-10 h-5 bg-zinc-700 rounded-full relative transition-colors {$settings
                         .appBehavior.autoStart
                         ? 'bg-indigo-500'
@@ -114,6 +137,8 @@
                     </div>
                 </div>
                 <div
+                    role="switch"
+                    aria-checked={$settings.appBehavior.minimizeToTray}
                     class="w-10 h-5 bg-zinc-700 rounded-full relative transition-colors {$settings
                         .appBehavior.minimizeToTray
                         ? 'bg-emerald-500'
@@ -137,7 +162,7 @@
                     <div
                         class="p-3 rounded-lg bg-zinc-800 text-zinc-400 group-hover:text-sky-400 group-hover:bg-sky-500/10 transition-colors"
                     >
-                        <Import size={20} />
+                        <EyeOff size={20} />
                     </div>
                     <div class="text-left">
                         <div class="text-sm font-medium text-zinc-200">
@@ -149,6 +174,8 @@
                     </div>
                 </div>
                 <div
+                    role="switch"
+                    aria-checked={$settings.appBehavior.startMinimized}
                     class="w-10 h-5 bg-zinc-700 rounded-full relative transition-colors {$settings
                         .appBehavior.startMinimized
                         ? 'bg-sky-500'

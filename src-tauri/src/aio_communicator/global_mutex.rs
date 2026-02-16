@@ -3,6 +3,7 @@ use windows_sys::Win32::Foundation::{HANDLE, CloseHandle, FALSE, WAIT_TIMEOUT, W
 use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
 use std::io;
+use log::warn;
 
 /// A cross-process mutex using Windows Named Mutexes.
 pub struct GlobalMutex {
@@ -32,7 +33,10 @@ impl GlobalMutex {
         // Wait up to 3000ms to be safe (C# uses 1000ms+transactions).
         let result = unsafe { WaitForSingleObject(self.handle, 3000) };
         
-        if result == WAIT_OBJECT_0 || result == WAIT_ABANDONED {
+        if result == WAIT_OBJECT_0 {
+            Ok(MutexGuard { mutex: self })
+        } else if result == WAIT_ABANDONED {
+            warn!("Global mutex acquired with WAIT_ABANDONED — previous owner likely crashed without releasing");
             Ok(MutexGuard { mutex: self })
         } else if result == WAIT_TIMEOUT {
              Err(io::Error::new(io::ErrorKind::TimedOut, "Mutex timeout"))

@@ -22,13 +22,11 @@ impl CorsairH150i {
     }
 
     pub fn send_image(&self, jpeg_data: &[u8]) -> Result<()> {
-        // ACQUIRE GLOBAL MUTEX
-        // Using our custom windows-sys helper to support "Global\" namespace
-        let lock = super::global_mutex::GlobalMutex::new("Global\\CorsairLinkReadWriteGuardMutex")?;
-        
-        // We attempt to lock. If it fails (timeout), we skip this frame to prevent UI freeze
-        // or we can propagate the error. For now, let's propagate.
-        let _guard = lock.lock().map_err(|e| anyhow!("Mutex error: {}", e))?;
+        // NOTE: No global mutex needed here. The LCD cap is a separate USB HID device
+        // (PIDs: 0x0c39, 0x0c33, 0x0c4e) from the pump/controller that the sensor-bridge
+        // communicates with. The CorsairLinkReadWriteGuardMutex is for pump/controller
+        // access only. Acquiring it here caused ~1s periodic stuttering due to contention
+        // with sensor-bridge's device.Refresh() calls.
 
         let mut part_num: u16 = 0;
         let max_len = 1024;

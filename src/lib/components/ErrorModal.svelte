@@ -28,13 +28,14 @@
     transition:fade={{ duration: 150 }}
     on:click|self={() => dispatch("close")}
     on:keydown={handleKeydown}
-    role="button"
-    tabindex="0"
+    role="presentation"
 >
     <div
         class="glass-modal w-full max-w-sm p-6 text-center"
         transition:scale={{ duration: 150, start: 0.95 }}
-        role="dialog"
+        role="alertdialog"
+        aria-modal="true"
+        aria-label={title}
     >
         <div
             class="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500"

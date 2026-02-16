@@ -1,4 +1,4 @@
-import type { ThemeDefinition } from '../types';
+import type { ThemeDefinition } from '$lib/types';
 import type { GifData } from '$lib/gif_utils';
 import { fitText } from '../../utils';
 
@@ -21,7 +21,7 @@ export const theme: ThemeDefinition = {
         { id: 'textFont', label: 'Font Family', type: 'font', default: 'Arial' },
         { id: 'fontSize', label: 'Font Size', type: 'range', default: 80, min: 20, max: 200 }
     ],
-    renderFn: async (ctx, w, h, values, formatted, config, tick, assets) => {
+    renderFn: (ctx, w, h, values, formatted, config, tick, assets) => {
         const asset = assets['source'];
         const zoom = (config.zoom ?? 100) / 100;
         const panX = config.panX ?? 0;
@@ -52,11 +52,8 @@ export const theme: ThemeDefinition = {
                     timeAccumulator += f.delay;
 
                     if (timeAccumulator >= currentTime) {
-                        if (f.image instanceof ImageData) {
-                            imgToDraw = await createImageBitmap(f.image);
-                        } else {
-                            imgToDraw = f.image;
-                        }
+                        // Use pre-rendered ImageBitmap directly — no per-frame allocation
+                        imgToDraw = f.bitmap;
                         break;
                     }
                 }
@@ -81,6 +78,13 @@ export const theme: ThemeDefinition = {
                 ctx.drawImage(imgToDraw, drawX, drawY, drawW, drawH);
             }
 
+        } else if (config.source) {
+            // Config has a path but asset hasn't loaded yet
+            ctx.fillStyle = '#71717a';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = 'bold 24px Arial';
+            ctx.fillText("LOADING...", w / 2, h / 2);
         } else {
             ctx.fillStyle = 'white';
             ctx.textAlign = 'center';

@@ -12,6 +12,7 @@
         Settings,
         Plus,
         Trash2,
+        Loader2,
     } from "lucide-svelte";
     import { open } from "@tauri-apps/plugin-dialog";
     import {
@@ -33,6 +34,7 @@
     // Error State
     let showErrorModal = false;
     let errorMessage = "";
+    let isImporting = false;
 
     onMount(() => {
         refreshThemes();
@@ -45,6 +47,7 @@
     // Strict Validation - Delegated to themeStore
 
     async function importTheme() {
+        if (isImporting) return;
         try {
             const path = await open({
                 multiple: false,
@@ -52,6 +55,7 @@
             });
 
             if (path && typeof path === "string") {
+                isImporting = true;
                 const code = await readTextFile(path);
 
                 let themeObj;
@@ -62,6 +66,7 @@
                     console.error("Theme Validation Error", validationErr);
                     errorMessage = `Invalid Theme:\n${validationErr.message}`;
                     showErrorModal = true;
+                    isImporting = false;
                     return;
                 }
 
@@ -74,8 +79,10 @@
                     baseDir: BaseDirectory.AppData,
                 });
                 await refreshThemes();
+                isImporting = false;
             }
         } catch (e: any) {
+            isImporting = false;
             console.error("Import failed", e);
             errorMessage = `System Error:\n${e.message || e}`;
             showErrorModal = true;
@@ -143,10 +150,15 @@
         </div>
         <button
             on:click={importTheme}
-            class="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-zinc-400 hover:text-white transition-colors"
+            disabled={isImporting}
+            class="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-zinc-400 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             title="Import .js Theme"
         >
-            <Plus size={18} />
+            {#if isImporting}
+                <Loader2 size={18} class="animate-spin" />
+            {:else}
+                <Plus size={18} />
+            {/if}
         </button>
     </div>
 
@@ -192,16 +204,25 @@
 
                         {#if (theme as any)._isCustom}
                             <div
-                                role="button"
-                                tabindex="0"
-                                on:click={(e) =>
+                                on:click|stopPropagation={(e) =>
                                     requestDelete(
                                         e,
                                         (theme as any)._fileName,
                                         theme.id,
                                     )}
-                                on:keydown={() => {}}
-                                class="p-1.5 hover:bg-red-500/20 text-zinc-600 hover:text-red-400 rounded transition-colors"
+                                role="button"
+                                tabindex="0"
+                                on:keydown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                        requestDelete(
+                                            e as any,
+                                            (theme as any)._fileName,
+                                            theme.id,
+                                        );
+                                    }
+                                }}
+                                class="p-1.5 hover:bg-red-500/20 text-zinc-600 hover:text-red-400 rounded transition-colors cursor-pointer"
+                                title="Delete theme"
                             >
                                 <Trash2 size={14} />
                             </div>
