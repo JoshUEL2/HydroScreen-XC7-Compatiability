@@ -183,12 +183,26 @@ public sealed class ICueLinkHubDevice : DeviceBase
             TryChangeDeviceMode();
         }
 
-        WriteRequestedSpeeds();
+        EndpointResponse speedsResponse;
+        EndpointResponse temperaturesResponse;
 
-        var speedsResponse = ReadFromEndpoint(Endpoints.GetSpeeds, DataTypes.Speeds);
+        using (_guardManager.AwaitExclusiveAccess())
+        {
+            // Single drain at the start — clears stale input reports (including those
+            // broadcast from other processes like SignalRGB) so subsequent pipelined
+            // writes don't need to drain individually.
+            _device.ClearEnqueuedReports();
+
+            if (!_passive)
+            {
+                WriteRequestedSpeedsDirect();
+            }
+
+            speedsResponse = ReadEndpointDirect(Endpoints.GetSpeeds, DataTypes.Speeds);
+            temperaturesResponse = ReadEndpointDirect(Endpoints.GetTemperatures, DataTypes.Temperatures);
+        }
+
         RefreshSpeeds(speedsResponse);
-
-        var temperaturesResponse = ReadFromEndpoint(Endpoints.GetTemperatures, DataTypes.Temperatures);
         RefreshTemperatures(temperaturesResponse);
 
         if (CanLogDebug)
@@ -370,6 +384,24 @@ public sealed class ICueLinkHubDevice : DeviceBase
         WriteToEndpoint(Endpoints.SoftwareSpeedFixedPercent, DataTypes.SoftwareSpeedFixedPercent, data);
     }
 
+    private void WriteRequestedSpeedsDirect()
+    {
+        if (!_requestedChannelPower.ApplyChanges())
+        {
+            return;
+        }
+
+        var channelSpeeds = new Dictionary<int, byte>(_channels.Count);
+        foreach (var channel in _channels.Keys)
+        {
+            channelSpeeds[channel] = _requestedChannelPower[channel];
+        }
+
+        var data = LinkHubDataWriter.CreateSoftwareSpeedFixedPercentData(channelSpeeds);
+
+        WriteEndpointDirect(Endpoints.SoftwareSpeedFixedPercent, DataTypes.SoftwareSpeedFixedPercent, data);
+    }
+
     private byte[] SendCommand(ReadOnlySpan<byte> command, ReadOnlySpan<byte> data = default, ReadOnlySpan<byte> waitForDataType = default)
     {
         var writeBuf = LinkHubDataWriter.CreateCommandPacket(PACKET_SIZE_OUT, command, data);
@@ -449,6 +481,72 @@ public sealed class ICueLinkHubDevice : DeviceBase
     {
         var resDataType = responseBuffer.Slice(5, 2);
         return resDataType.SequenceEqual(expectedDataType);
+    }
+
+    /// <summary>
+    /// Pipelined endpoint read: fires close/open/read commands via WriteDirect (no per-command
+    /// input buffer drain), then reads responses filtering for the expected data type.
+    /// Must be called within an already-acquired guard and after an initial ClearEnqueuedReports.
+    /// </summary>
+    private EndpointResponse ReadEndpointDirect(ReadOnlySpan<byte> endpoint, ReadOnlySpan<byte> dataType)
+    {
+        WriteCommandDirect(Commands.CloseEndpoint, endpoint);
+        WriteCommandDirect(Commands.OpenEndpoint, endpoint);
+        WriteCommandDirect(Commands.Read);
+
+        var readBuf = new byte[PACKET_SIZE];
+        var cts = new CancellationTokenSource(SEND_COMMAND_WAIT_FOR_DATA_TYPE_READ_TIMEOUT_MS);
+
+        while (!cts.IsCancellationRequested)
+        {
+            Read(readBuf);
+            if (DoesResponseDataTypeMatchExpected(readBuf, dataType))
+            {
+                WriteCommandDirect(Commands.CloseEndpoint, endpoint);
+                return new EndpointResponse(readBuf.AsSpan(1).ToArray(), dataType);
+            }
+        }
+
+        throw CreateCommandException("Operation canceled: The expected data type was not read within the specified time.", Commands.Read, default, dataType);
+    }
+
+    /// <summary>
+    /// Pipelined endpoint write: fires close/open/write/close commands via WriteDirect.
+    /// Must be called within an already-acquired guard and after an initial ClearEnqueuedReports.
+    /// </summary>
+    private void WriteEndpointDirect(ReadOnlySpan<byte> endpoint, ReadOnlySpan<byte> dataType, ReadOnlySpan<byte> data)
+    {
+        var writeBuf = LinkHubDataWriter.CreateWriteData(dataType, data);
+
+        WriteCommandDirect(Commands.CloseEndpoint, endpoint);
+        WriteCommandDirect(Commands.OpenEndpoint, endpoint);
+        WriteCommandDirect(Commands.Write, writeBuf);
+        WriteCommandDirect(Commands.CloseEndpoint, endpoint);
+    }
+
+    /// <summary>
+    /// Sends a command packet using WriteDirect (no input buffer drain).
+    /// </summary>
+    private void WriteCommandDirect(ReadOnlySpan<byte> command, ReadOnlySpan<byte> data = default)
+    {
+        var writeBuf = LinkHubDataWriter.CreateCommandPacket(PACKET_SIZE_OUT, command, data);
+
+        if (CanLogDebug)
+        {
+            LogDebug($"WRITE: {writeBuf.ToHexString()}");
+        }
+
+        try
+        {
+            _device.WriteDirect(writeBuf);
+        }
+        catch (TimeoutException)
+        {
+            if (!TryChangeDeviceMode())
+            {
+                throw;
+            }
+        }
     }
 
     private EndpointResponse ReadFromEndpoint(ReadOnlySpan<byte> endpoint, ReadOnlySpan<byte> dataType)

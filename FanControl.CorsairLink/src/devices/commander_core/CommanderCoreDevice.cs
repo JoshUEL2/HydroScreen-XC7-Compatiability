@@ -149,22 +149,34 @@ public sealed class CommanderCoreDevice : DeviceBase
 
     private void RefreshImpl(bool initialize = false)
     {
-        var connectedSpeedsResponse = ReadFromEndpoint(Endpoints.GetConnectedSpeeds, DataTypes.ConnectedSpeeds);
+        EndpointResponse connectedSpeedsResponse;
+        EndpointResponse speedsResponse;
+        EndpointResponse temperaturesResponse;
 
-        if (initialize)
+        using (_guardManager.AwaitExclusiveAccess())
         {
-            InitializeSpeedChannels(connectedSpeedsResponse);
+            // Single drain at the start — clears stale input reports (including those
+            // broadcast from other processes like SignalRGB) so subsequent pipelined
+            // writes don't need to drain individually.
+            _device.ClearEnqueuedReports();
+
+            connectedSpeedsResponse = ReadEndpointDirect(Endpoints.GetConnectedSpeeds, DataTypes.ConnectedSpeeds);
+
+            if (initialize)
+            {
+                InitializeSpeedChannels(connectedSpeedsResponse);
+            }
+
+            if (!_passive)
+            {
+                WriteRequestedSpeedsDirect();
+            }
+
+            speedsResponse = ReadEndpointDirect(Endpoints.GetSpeeds, DataTypes.Speeds);
+            temperaturesResponse = ReadEndpointDirect(Endpoints.GetTemperatures, DataTypes.Temperatures);
         }
 
-        if (!_passive)
-        {
-            WriteRequestedSpeeds();
-        }
-
-        var speedsResponse = ReadFromEndpoint(Endpoints.GetSpeeds, DataTypes.Speeds);
         RefreshSpeeds(connectedSpeedsResponse, speedsResponse);
-
-        var temperaturesResponse = ReadFromEndpoint(Endpoints.GetTemperatures, DataTypes.Temperatures);
         RefreshTemperatures(temperaturesResponse);
 
         if (CanLogDebug)
@@ -309,6 +321,26 @@ public sealed class CommanderCoreDevice : DeviceBase
         WriteToEndpoint(Endpoints.SoftwareSpeedFixedPercent, DataTypes.SoftwareSpeedFixedPercent, data);
     }
 
+    private void WriteRequestedSpeedsDirect()
+    {
+        if (_passive) return;
+
+        if (!_requestedChannelPower.ApplyChanges())
+        {
+            return;
+        }
+
+        var channelSpeeds = new Dictionary<int, byte>(_speedChannelCount);
+        for (var channel = 0; channel < _speedChannelCount; channel++)
+        {
+            channelSpeeds[channel] = _requestedChannelPower[channel];
+        }
+
+        var data = CommanderCoreDataWriter.CreateSoftwareSpeedFixedPercentData(channelSpeeds);
+
+        WriteEndpointDirect(Endpoints.SoftwareSpeedFixedPercent, DataTypes.SoftwareSpeedFixedPercent, data);
+    }
+
     private byte[] SendCommand(ReadOnlySpan<byte> command, ReadOnlySpan<byte> data = default, ReadOnlySpan<byte> waitForDataType = default)
     {
         var writeBuf = CommanderCoreDataWriter.CreateCommandPacket(_packetSize + 1, command, data);
@@ -348,6 +380,80 @@ public sealed class CommanderCoreDevice : DeviceBase
     {
         var resDataType = responseBuffer.AsSpan(4, 2);
         return resDataType.SequenceEqual(expectedDataType);
+    }
+
+    /// <summary>
+    /// Pipelined endpoint read: fires close/open/read commands via WriteDirect (no per-command
+    /// input buffer drain), then reads responses filtering for the expected data type.
+    /// Must be called within an already-acquired guard and after an initial ClearEnqueuedReports.
+    /// </summary>
+    private EndpointResponse ReadEndpointDirect(ReadOnlySpan<byte> endpoint, ReadOnlySpan<byte> dataType)
+    {
+        // Fire commands without waiting for individual responses — the device
+        // processes them in order on the USB OUT endpoint while queuing responses
+        // on the IN endpoint. This avoids the ~1ms drain + ~1ms read overhead
+        // that SendCommand adds per command.
+        WriteCommandDirect(Commands.CloseEndpoint, endpoint);
+        WriteCommandDirect(Commands.OpenEndpoint, endpoint);
+        WriteCommandDirect(Commands.Read);
+
+        // Read responses, skipping close/open acks until we get the data payload
+        var readBuf = new byte[_packetSize];
+        var cts = new CancellationTokenSource(SEND_COMMAND_WAIT_FOR_DATA_TYPE_READ_TIMEOUT_MS);
+
+        while (!cts.IsCancellationRequested)
+        {
+            Read(readBuf);
+            if (DoesResponseDataTypeMatchExpected(readBuf, dataType))
+            {
+                // Fire the final close without waiting for its response
+                WriteCommandDirect(Commands.CloseEndpoint, endpoint);
+                return new EndpointResponse(readBuf.AsSpan(1).ToArray(), dataType);
+            }
+        }
+
+        throw CreateCommandException("Operation canceled: The expected data type was not read within the specified time.", Commands.Read, default, dataType);
+    }
+
+    /// <summary>
+    /// Pipelined endpoint write: fires close/open/write/close commands via WriteDirect.
+    /// Must be called within an already-acquired guard and after an initial ClearEnqueuedReports.
+    /// </summary>
+    private void WriteEndpointDirect(ReadOnlySpan<byte> endpoint, ReadOnlySpan<byte> dataType, ReadOnlySpan<byte> data)
+    {
+        if (_passive) return;
+
+        var writeBuf = CommanderCoreDataWriter.CreateWriteData(dataType, data);
+
+        WriteCommandDirect(Commands.CloseEndpoint, endpoint);
+        WriteCommandDirect(Commands.OpenEndpoint, endpoint);
+        WriteCommandDirect(Commands.Write, writeBuf);
+        WriteCommandDirect(Commands.CloseEndpoint, endpoint);
+    }
+
+    /// <summary>
+    /// Sends a command packet using WriteDirect (no input buffer drain).
+    /// </summary>
+    private void WriteCommandDirect(ReadOnlySpan<byte> command, ReadOnlySpan<byte> data = default)
+    {
+        var writeBuf = CommanderCoreDataWriter.CreateCommandPacket(_packetSize + 1, command, data);
+
+        if (CanLogDebug)
+        {
+            LogDebug($"WRITE: {writeBuf.ToHexString()}");
+        }
+
+        try
+        {
+            _device.WriteDirect(writeBuf);
+        }
+        catch (TimeoutException)
+        {
+            if (!TryChangeDeviceMode())
+            {
+                throw;
+            }
+        }
     }
 
     private EndpointResponse ReadFromEndpoint(ReadOnlySpan<byte> endpoint, ReadOnlySpan<byte> dataType)
