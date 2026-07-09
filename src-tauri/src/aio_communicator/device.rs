@@ -2,6 +2,10 @@ use super::constants::{VID, SUPPORTED_PIDS, IMG_TX};
 use anyhow::{Result, anyhow};
 use hidapi::{HidApi, HidDevice};
 use log::info;
+use std::sync::atomic::{AtomicU8, AtomicU16};
+
+pub static LCD_BRIGHTNESS: AtomicU8 = AtomicU8::new(100);
+pub static LCD_ROTATION: AtomicU16 = AtomicU16::new(0);
 
 pub struct CorsairH150i {
     pub device: HidDevice,
@@ -19,6 +23,57 @@ impl CorsairH150i {
         }
 
         Err(anyhow!("No supported Corsair LCD device found."))
+    }
+
+    fn send_feature(&self, payload: &[u8]) -> Result<()> {
+        let mut packet = [0u8; 32];
+        packet[0] = 0x03; // Report ID
+        for (i, &b) in payload.iter().enumerate() {
+            if i + 1 < packet.len() {
+                packet[i + 1] = b;
+            }
+        }
+        self.device.send_feature_report(&packet)?;
+        Ok(())
+    }
+
+    pub fn set_brightness(&self, percent: u8, persist: bool) -> Result<()> {
+        let raw_val = match percent {
+            0..=16 => 0x01,
+            17..=49 => 0x04,
+            50..=83 => 0x10,
+            _ => 0x40,
+        };
+
+        info!("[RUST] Setting brightness to {}% (register: 0x{:02x})...", percent, raw_val);
+        self.send_feature(&[0x0B, raw_val])?;
+
+        if persist {
+            info!("[RUST] Persisting brightness to onboard flash...");
+            self.send_feature(&[0x19, raw_val])?;
+        }
+
+        Ok(())
+    }
+
+    pub fn set_rotation(&self, angle: u16, persist: bool) -> Result<()> {
+        let raw_val = match angle {
+            0 => 0x00,
+            90 => 0x01,
+            180 => 0x02,
+            270 => 0x03,
+            _ => return Err(anyhow!("Invalid rotation angle: {}", angle)),
+        };
+
+        info!("[RUST] Setting display rotation to {}° (index: 0x{:02x})...", angle, raw_val);
+        self.send_feature(&[0x0C, raw_val])?;
+
+        if persist {
+            info!("[RUST] Persisting rotation to onboard flash...");
+            self.send_feature(&[0x19, raw_val])?;
+        }
+
+        Ok(())
     }
 
     pub fn send_image(&self, jpeg_data: &[u8]) -> Result<()> {

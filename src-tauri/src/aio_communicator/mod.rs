@@ -8,28 +8,55 @@ pub mod device;
 #[allow(dead_code)]
 pub mod global_mutex;
 
-use device::CorsairH150i;
+use device::{CorsairH150i, LCD_BRIGHTNESS, LCD_ROTATION};
 
-pub fn run_aio_loop(rx: Receiver<Vec<u8>>) {
+pub enum AioMessage {
+    Frame(Vec<u8>),
+    Brightness { percent: u8, persist: bool },
+    Rotation { angle: u16, persist: bool },
+}
+
+pub fn run_aio_loop(rx: Receiver<AioMessage>) {
     info!("[RUST] Starting AIO Loop...");
 
     let mut device_opt: Option<CorsairH150i> = None;
 
     loop {
         match rx.recv_timeout(Duration::from_secs(10)) {
-            Ok(jpeg_frame) => {
-                // Drain the channel to always send the most recent frame.
-                // If frames queued up while we were writing the previous one,
-                // skip the stale ones to keep the LCD responsive.
-                let mut latest_frame = jpeg_frame;
-                while let Ok(newer_frame) = rx.try_recv() {
-                    latest_frame = newer_frame;
+            Ok(message) => {
+                // Drain the channel to always send the most recent frame and apply all settings.
+                let mut latest_frame = None;
+                let mut pending_messages = Vec::new();
+
+                match message {
+                    AioMessage::Frame(f) => latest_frame = Some(f),
+                    other => pending_messages.push(other),
+                }
+
+                while let Ok(msg) = rx.try_recv() {
+                    match msg {
+                        AioMessage::Frame(f) => {
+                            latest_frame = Some(f);
+                        }
+                        other => {
+                            pending_messages.push(other);
+                        }
+                    }
                 }
 
                 if device_opt.is_none() {
                     match CorsairH150i::new() {
                         Ok(d) => {
                             info!("[RUST] Corsair Device Connected!");
+                            // Apply current cached settings on fresh connection
+                            let brightness = LCD_BRIGHTNESS.load(std::sync::atomic::Ordering::Relaxed);
+                            let rotation = LCD_ROTATION.load(std::sync::atomic::Ordering::Relaxed);
+                            if let Err(e) = d.set_brightness(brightness, false) {
+                                error!("[RUST] Failed to set initial brightness: {}", e);
+                            }
+                            if let Err(e) = d.set_rotation(rotation, false) {
+                                error!("[RUST] Failed to set initial rotation: {}", e);
+                            }
                             device_opt = Some(d);
                         },
                         Err(e) => {
@@ -41,9 +68,29 @@ pub fn run_aio_loop(rx: Receiver<Vec<u8>>) {
                 }
 
                 if let Some(device) = &device_opt {
-                    if let Err(e) = device.send_image(&latest_frame) {
-                        error!("[RUST] Write error (Dropping connection): {}", e);
-                        device_opt = None;
+                    // Process any configuration changes first
+                    for msg in pending_messages {
+                        match msg {
+                            AioMessage::Brightness { percent, persist } => {
+                                if let Err(e) = device.set_brightness(percent, persist) {
+                                    error!("[RUST] Brightness write error: {}", e);
+                                }
+                            }
+                            AioMessage::Rotation { angle, persist } => {
+                                if let Err(e) = device.set_rotation(angle, persist) {
+                                    error!("[RUST] Rotation write error: {}", e);
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+
+                    // Then process the latest frame if there is one
+                    if let Some(frame) = latest_frame {
+                        if let Err(e) = device.send_image(&frame) {
+                            error!("[RUST] Write error (Dropping connection): {}", e);
+                            device_opt = None;
+                        }
                     }
                 }
             }

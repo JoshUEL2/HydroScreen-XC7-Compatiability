@@ -15,13 +15,29 @@ use tauri_plugin_log::{Target, TargetKind, RotationStrategy};
 use log::info;
 
 pub struct ImageChannel {
-    pub tx: Mutex<Sender<Vec<u8>>>,
+    pub tx: Mutex<Sender<aio_communicator::AioMessage>>,
 }
 
 #[tauri::command]
 fn send_frame(jpeg_data: Vec<u8>, state: State<ImageChannel>) {
     if let Ok(tx) = state.tx.lock() {
-        let _ = tx.try_send(jpeg_data);
+        let _ = tx.try_send(aio_communicator::AioMessage::Frame(jpeg_data));
+    }
+}
+
+#[tauri::command]
+fn set_lcd_brightness(percent: u8, persist: bool, state: State<ImageChannel>) {
+    aio_communicator::device::LCD_BRIGHTNESS.store(percent, std::sync::atomic::Ordering::Relaxed);
+    if let Ok(tx) = state.tx.lock() {
+        let _ = tx.try_send(aio_communicator::AioMessage::Brightness { percent, persist });
+    }
+}
+
+#[tauri::command]
+fn set_lcd_rotation(angle: u16, persist: bool, state: State<ImageChannel>) {
+    aio_communicator::device::LCD_ROTATION.store(angle, std::sync::atomic::Ordering::Relaxed);
+    if let Ok(tx) = state.tx.lock() {
+        let _ = tx.try_send(aio_communicator::AioMessage::Rotation { angle, persist });
     }
 }
 
@@ -34,7 +50,7 @@ fn get_system_fonts() -> Vec<String> {
 }
 
 fn main() {
-    let (tx, rx) = bounded::<Vec<u8>>(2);
+    let (tx, rx) = bounded::<aio_communicator::AioMessage>(2);
     
     let args: Vec<String> = std::env::args().collect();
     let debug_mode = args.contains(&"--debug".to_string()) || cfg!(debug_assertions);
@@ -69,7 +85,13 @@ fn main() {
             let _ = app.get_webview_window("main").expect("no main window").set_focus();
         }))
         .manage(ImageChannel { tx: Mutex::new(tx) })
-        .invoke_handler(tauri::generate_handler![send_frame, get_system_fonts, sidecar_handler::retry_sidecar])
+        .invoke_handler(tauri::generate_handler![
+            send_frame,
+            get_system_fonts,
+            sidecar_handler::retry_sidecar,
+            set_lcd_brightness,
+            set_lcd_rotation
+        ])
         .setup(move |app| {
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let show_i = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;

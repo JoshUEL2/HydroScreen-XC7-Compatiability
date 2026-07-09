@@ -4,6 +4,7 @@ import { BaseDirectory, writeTextFile, mkdir, exists } from '@tauri-apps/plugin-
 import type { SensorMapping } from '$lib/types';
 import { enable, disable, isEnabled } from '@tauri-apps/plugin-autostart';
 import { refreshThemes } from './themeStore';
+import { invoke } from '@tauri-apps/api/core';
 
 const STORE_PATH = 'settings.json';
 
@@ -19,6 +20,10 @@ interface AppSettings {
         startMinimized: boolean;
     };
     customThemes?: string[];
+    lcdConfig?: {
+        brightness: number;
+        rotation: number;
+    };
 }
 
 const defaultSettings: AppSettings = {
@@ -29,6 +34,10 @@ const defaultSettings: AppSettings = {
         minimizeToTray: true,
         autoStart: false,
         startMinimized: false
+    },
+    lcdConfig: {
+        brightness: 100,
+        rotation: 0
     }
 };
 
@@ -81,14 +90,27 @@ function createSettingsStore() {
                 const diskStore = await getDiskStore();
                 const val = await diskStore.get<AppSettings>('config');
 
+                const finalSettings = {
+                    ...defaultSettings,
+                    ...val,
+                    appBehavior: { ...defaultSettings.appBehavior, ...val?.appBehavior },
+                    lcdConfig: { ...defaultSettings.lcdConfig, ...val?.lcdConfig }
+                };
+
+                set(finalSettings);
+
+                // Send initial LCD config to backend (persist: false)
+                if (finalSettings.lcdConfig) {
+                    try {
+                        await invoke('set_lcd_brightness', { percent: finalSettings.lcdConfig.brightness, persist: false });
+                        await invoke('set_lcd_rotation', { angle: finalSettings.lcdConfig.rotation, persist: false });
+                    } catch (err) {
+                        console.error("Failed to set initial LCD config:", err);
+                    }
+                }
+
                 if (val) {
                     await migrateCustomThemes(val, diskStore);
-
-                    set({
-                        ...defaultSettings,
-                        ...val,
-                        appBehavior: { ...defaultSettings.appBehavior, ...val.appBehavior }
-                    });
 
                     const shouldAutoStart = val.appBehavior?.autoStart ?? false;
                     const currentlyEnabled = await isEnabled();
@@ -145,6 +167,38 @@ function createSettingsStore() {
                 triggerSave(next);
                 return next;
             });
+        },
+        updateLcdBrightness: async (percent: number) => {
+            update(s => {
+                const next = { ...s };
+                if (!next.lcdConfig) {
+                    next.lcdConfig = { brightness: 100, rotation: 0 };
+                }
+                next.lcdConfig.brightness = percent;
+                triggerSave(next);
+                return next;
+            });
+            try {
+                await invoke('set_lcd_brightness', { percent, persist: true });
+            } catch (err) {
+                console.error("Failed to send brightness command:", err);
+            }
+        },
+        updateLcdRotation: async (angle: number) => {
+            update(s => {
+                const next = { ...s };
+                if (!next.lcdConfig) {
+                    next.lcdConfig = { brightness: 100, rotation: 0 };
+                }
+                next.lcdConfig.rotation = angle;
+                triggerSave(next);
+                return next;
+            });
+            try {
+                await invoke('set_lcd_rotation', { angle, persist: true });
+            } catch (err) {
+                console.error("Failed to send rotation command:", err);
+            }
         }
     };
 }

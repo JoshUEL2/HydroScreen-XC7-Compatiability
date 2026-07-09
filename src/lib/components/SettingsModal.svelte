@@ -3,7 +3,7 @@
     import { fade, scale } from "svelte/transition";
     import { settings } from "$lib/stores/settings";
     import { getVersion } from "@tauri-apps/api/app";
-    import { X, Power, ArrowDownToLine, Monitor, EyeOff } from "lucide-svelte";
+    import { X, Power, ArrowDownToLine, Monitor, EyeOff, Sun, RotateCw } from "lucide-svelte";
 
     const dispatch = createEventDispatcher();
     let version = "";
@@ -42,6 +42,19 @@
                 first.focus();
             }
         }
+    }
+
+    const brightnessValues = [0, 33, 66, 100];
+    $: brightnessIndex = brightnessValues.indexOf($settings.lcdConfig?.brightness ?? 100);
+
+    function handleBrightnessChange(e: Event) {
+        const index = parseInt((e.target as HTMLInputElement).value);
+        const val = brightnessValues[index];
+        settings.updateLcdBrightness(val);
+    }
+
+    function handleRotationChange(angle: number) {
+        settings.updateLcdRotation(angle);
     }
 </script>
 
@@ -189,6 +202,74 @@
                     ></div>
                 </div>
             </button>
+
+            <!-- Divider -->
+            <div class="pt-4 border-t border-white/5">
+                <div class="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">
+                    LCD Cap Hardware Settings
+                </div>
+            </div>
+
+            <!-- Brightness Setting -->
+            <div class="space-y-3 pt-2">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-4">
+                        <div class="p-3 rounded-lg bg-zinc-800 text-zinc-400">
+                            <Sun size={20} class="text-amber-400" />
+                        </div>
+                        <div class="text-left">
+                            <div class="text-sm font-medium text-zinc-200">Screen Brightness</div>
+                            <div class="text-xs text-zinc-500">Adjust screen backlight level</div>
+                        </div>
+                    </div>
+                    <div class="text-xs font-bold text-zinc-300 font-mono bg-zinc-800/80 px-2 py-1 rounded border border-white/5">
+                        {$settings.lcdConfig?.brightness ?? 100}%
+                    </div>
+                </div>
+                <div class="px-2 pb-1 relative">
+                    <input
+                        type="range"
+                        min="0"
+                        max="3"
+                        step="1"
+                        value={brightnessIndex}
+                        on:input={handleBrightnessChange}
+                        class="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500 hover:bg-zinc-700 transition-colors"
+                    />
+                    <div class="flex justify-between text-[10px] text-zinc-500 font-mono mt-2 px-0.5">
+                        <span>0%</span>
+                        <span>33%</span>
+                        <span>66%</span>
+                        <span>100%</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Rotation Setting -->
+            <div class="space-y-3 pt-2">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-4">
+                        <div class="p-3 rounded-lg bg-zinc-800 text-zinc-400">
+                            <RotateCw size={20} class="text-indigo-400" />
+                        </div>
+                        <div class="text-left">
+                            <div class="text-sm font-medium text-zinc-200">Display Rotation</div>
+                            <div class="text-xs text-zinc-500">Rotate screen orientation</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-4 gap-1 p-1 bg-zinc-900 rounded-lg border border-white/5">
+                    {#each [0, 90, 180, 270] as angle}
+                        <button
+                            type="button"
+                            class="py-1.5 text-xs font-mono font-medium rounded-md transition-all duration-200 {($settings.lcdConfig?.rotation ?? 0) === angle ? 'bg-indigo-500 text-white shadow-md font-bold' : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5'}"
+                            on:click={() => handleRotationChange(angle)}
+                        >
+                            {angle}°
+                        </button>
+                    {/each}
+                </div>
+            </div>
         </div>
 
         <div
