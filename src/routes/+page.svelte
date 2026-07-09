@@ -7,6 +7,8 @@
     import ThemeSelector from '$lib/components/ThemeSelector.svelte';
     import ThemeConfigurator from '$lib/components/ThemeConfigurator.svelte';
     import SettingsModal from '$lib/components/SettingsModal.svelte';
+    import DoomModal from '$lib/components/DoomModal.svelte';
+    import { isDoomModalOpen } from '$lib/stores/doomStore';
     import { Loader2 } from 'lucide-svelte';
 
     let showSettings = false;
@@ -40,6 +42,10 @@
             
             {#if showSettings}
                 <SettingsModal on:close={() => showSettings = false} />
+            {/if}
+
+            {#if $isDoomModalOpen}
+                <DoomModal />
             {/if}
         </div>
     {:else}

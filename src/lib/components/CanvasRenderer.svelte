@@ -8,6 +8,7 @@
     import { formatUnit } from "$lib/utils";
     import { loadGif, type GifData } from "$lib/gif_utils";
     import { WifiOff, Loader2 } from "lucide-svelte";
+    import { isDoomModalOpen } from "$lib/stores/doomStore";
 
     let canvas: HTMLCanvasElement;
     let ctx: CanvasRenderingContext2D;
@@ -214,7 +215,7 @@
             }
         }
 
-        if (!isSending && !isOffline) {
+        if (!isSending && !isOffline && !$isDoomModalOpen) {
             isSending = true;
             canvas.toBlob(
                 async (blob) => {

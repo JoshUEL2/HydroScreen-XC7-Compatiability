@@ -26,7 +26,8 @@
     "gifuct-js": "^2.1.2",
     "html2canvas": "^1.4.1",
     "lucide-svelte": "^0.556.0",
-    "tailwind-merge": "^3.4.0"
+    "tailwind-merge": "^3.4.0",
+    "wasm-doom": "^1.2.0"
   },
   "devDependencies": {
     "@sveltejs/adapter-static": "^3.0.6",

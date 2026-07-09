@@ -90,11 +90,14 @@ function createSettingsStore() {
                 const diskStore = await getDiskStore();
                 const val = await diskStore.get<AppSettings>('config');
 
-                const finalSettings = {
+                const finalSettings: AppSettings = {
                     ...defaultSettings,
                     ...val,
                     appBehavior: { ...defaultSettings.appBehavior, ...val?.appBehavior },
-                    lcdConfig: { ...defaultSettings.lcdConfig, ...val?.lcdConfig }
+                    lcdConfig: {
+                        brightness: val?.lcdConfig?.brightness ?? defaultSettings.lcdConfig!.brightness,
+                        rotation: val?.lcdConfig?.rotation ?? defaultSettings.lcdConfig!.rotation
+                    }
                 };
 
                 set(finalSettings);

@@ -25,10 +25,30 @@
     import ErrorModal from "$lib/components/ErrorModal.svelte";
     import { get } from "svelte/store";
 
+    import { isDoomModalOpen } from "$lib/stores/doomStore";
+
     const dispatch = createEventDispatcher();
 
     // Modal States
     let showDeleteModal = false;
+    let clickCount = 0;
+    let clickTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    function handleLibraryClick() {
+        clickCount++;
+        if (clickCount === 1) {
+            clickTimeout = setTimeout(() => {
+                clickCount = 0;
+            }, 2000);
+        } else if (clickCount >= 3) {
+            if (clickTimeout) {
+                clearTimeout(clickTimeout);
+                clickTimeout = null;
+            }
+            clickCount = 0;
+            isDoomModalOpen.set(true);
+        }
+    }
     let themeToDelete: { fileName: string; id: string } | null = null;
 
     // Error State
@@ -141,12 +161,14 @@
     <div
         class="p-6 border-b border-white/5 shrink-0 flex justify-between items-center"
     >
-        <div>
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div on:click={handleLibraryClick} class="cursor-pointer select-none group">
             <div class="flex items-center gap-3 text-white mb-1">
-                <LayoutTemplate class="text-indigo-500" size={20} />
-                <h2 class="font-bold tracking-tight">Library</h2>
+                <LayoutTemplate class="text-indigo-500 group-hover:text-indigo-400 transition-colors" size={20} />
+                <h2 class="font-bold tracking-tight group-hover:text-zinc-100 transition-colors">Library</h2>
             </div>
-            <p class="text-xs text-zinc-500">Select layout.</p>
+            <p class="text-xs text-zinc-500 group-hover:text-zinc-400 transition-colors">Select layout.</p>
         </div>
         <button
             on:click={importTheme}
